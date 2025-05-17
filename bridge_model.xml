@@ -1,0 +1,87 @@
+<?xml version="1.0" ?>
+<mujoco model="bridge_building">
+    <!-- Options -->
+    <option timestep="0.002" gravity="0 0 -9.81">
+        <flag energy="enable" />
+    </option>
+
+    <!-- Assets -->
+    <asset>
+        <texture type="skybox" builtin="gradient" rgb1="0.3 0.5 0.7" rgb2="0 0 0" width="512" height="512"/>
+        <texture name="grid" type="2d" builtin="checker" rgb1=".2 .3 .4" rgb2=".3 .4 .5" width="512" height="512" mark="edge" markrgb=".2 .3 .4"/>
+        <material name="platform" texture="grid" rgba="0.7 0.7 0.7 1"/>
+        <material name="block" rgba="0.2 0.6 0.8 1"/>
+        <material name="ball" rgba="0.8 0.2 0.2 1"/>
+    </asset>
+
+    <!-- World -->
+    <worldbody>
+        <!-- Lighting -->
+        <light diffuse=".5 .5 .5" pos="0 0 3" dir="0 0 -1"/>
+        
+        <!-- Ground -->
+        <geom type="plane" size="10 10 0.1" rgba="0.8 0.8 0.8 1"/>
+        
+        <!-- Left Platform -->
+        <body name="left_platform" pos="-2 0 0.5">
+            <geom type="box" size="0.5 0.5 0.5" material="platform"/>
+        </body>
+        
+        <!-- Right Platform -->
+        <body name="right_platform" pos="2 0 0.5">
+            <geom type="box" size="0.5 0.5 0.5" material="platform"/>
+        </body>
+        
+        <!-- Ball (initially on left platform) -->
+        <body name="ball" pos="-2 0 1.2">
+            <geom type="sphere" size="0.1" material="ball"/>
+            <joint type="free"/>
+        </body>
+
+        <!-- Blocks (initially invisible, will be placed by agent) -->
+        <body name="block1" pos="0 0 -1">
+            <joint name="block1_x" type="slide" axis="1 0 0" range="-2 2"/>
+            <joint name="block1_y" type="slide" axis="0 1 0" range="-0.5 0.5"/>
+            <joint name="block1_z" type="slide" axis="0 0 1" range="0 1"/>
+            <geom type="box" size="0.2 0.2 0.2" material="block" rgba="0.2 0.6 0.8 0"/>
+        </body>
+        <body name="block2" pos="0 0 -1">
+            <joint name="block2_x" type="slide" axis="1 0 0" range="-2 2"/>
+            <joint name="block2_y" type="slide" axis="0 1 0" range="-0.5 0.5"/>
+            <joint name="block2_z" type="slide" axis="0 0 1" range="0 1"/>
+            <geom type="box" size="0.2 0.2 0.2" material="block" rgba="0.2 0.6 0.8 0"/>
+        </body>
+        <body name="block3" pos="0 0 -1">
+            <joint name="block3_x" type="slide" axis="1 0 0" range="-2 2"/>
+            <joint name="block3_y" type="slide" axis="0 1 0" range="-0.5 0.5"/>
+            <joint name="block3_z" type="slide" axis="0 0 1" range="0 1"/>
+            <geom type="box" size="0.2 0.2 0.2" material="block" rgba="0.2 0.6 0.8 0"/>
+        </body>
+    </worldbody>
+
+    <!-- Actuators -->
+    <actuator>
+        <!-- Position actuators for block placement -->
+        <position name="block1_x" joint="block1_x" gear="1 0 0 0 0 0"/>
+        <position name="block1_y" joint="block1_y" gear="0 1 0 0 0 0"/>
+        <position name="block1_z" joint="block1_z" gear="0 0 1 0 0 0"/>
+        <position name="block2_x" joint="block2_x" gear="1 0 0 0 0 0"/>
+        <position name="block2_y" joint="block2_y" gear="0 1 0 0 0 0"/>
+        <position name="block2_z" joint="block2_z" gear="0 0 1 0 0 0"/>
+        <position name="block3_x" joint="block3_x" gear="1 0 0 0 0 0"/>
+        <position name="block3_y" joint="block3_y" gear="0 1 0 0 0 0"/>
+        <position name="block3_z" joint="block3_z" gear="0 0 1 0 0 0"/>
+    </actuator>
+
+    <!-- Sensors -->
+    <sensor>
+        <!-- Ball position and velocity -->
+        <framepos name="ball_pos" objtype="body" objname="ball"/>
+        <framelinvel name="ball_vel" objtype="body" objname="ball"/>
+        
+        <!-- Block positions -->
+        <framepos name="block1_pos" objtype="body" objname="block1"/>
+        <framepos name="block2_pos" objtype="body" objname="block2"/>
+        <framepos name="block3_pos" objtype="body" objname="block3"/>
+    </sensor>
+</mujoco> 
