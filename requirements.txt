@@ -1,6 +1,6 @@
-gymnasium==0.29.1
-mujoco==2.3.7
-numpy==1.24.3
-torch==2.1.2
-stable-baselines3==2.2.1
-matplotlib==3.8.2 
+gymnasium>=0.29.1
+mujoco>=2.3.7
+numpy>=1.24.3
+torch>=2.1.2
+stable-baselines3>=2.2.1
+matplotlib>=3.8.2 
