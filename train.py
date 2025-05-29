@@ -35,7 +35,7 @@ def main():
         "MlpPolicy",
         env,
         learning_rate=3e-4,
-        n_steps=2048,
+        n_steps=100,
         batch_size=64,
         n_epochs=10,
         gamma=0.99,
@@ -46,7 +46,7 @@ def main():
     )
     
     # Train the agent
-    total_timesteps = 10000
+    total_timesteps = 1000
     model.learn(
         total_timesteps=total_timesteps,
         callback=eval_callback,

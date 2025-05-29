@@ -31,7 +31,7 @@ class BridgeBuildingEnv(gym.Env):
         
         # Track episode steps
         self.steps = 0
-        self.max_steps = 1000
+        self.max_steps = 1  
                 
         # Get actuator indices
         self.ball_actuators = []
@@ -47,7 +47,6 @@ class BridgeBuildingEnv(gym.Env):
                 if len(self.block_actuators) <= block_num:
                     self.block_actuators.append([])
                 self.block_actuators[block_num].append(i)
-        
         # Sort actuators to ensure x,y,z order
         self.ball_actuators.sort(key=lambda i: mujoco.mj_id2name(self.model, mujoco.mjtObj.mjOBJ_ACTUATOR, i))
         for block_acts in self.block_actuators:
@@ -59,10 +58,11 @@ class BridgeBuildingEnv(gym.Env):
         # Reset MuJoCo simulation
         mujoco.mj_resetData(self.model, self.data)
         
-        # Reset ball position using actuators
-        ball_pos = [-2, 0, 1.2]  # Initial ball position
-        for i, actuator_idx in enumerate(self.ball_actuators):
-            self.data.ctrl[actuator_idx] = ball_pos[i]
+        # Directly set ball position
+        self.data.qpos[:7] = [-2, 0, 1.2, 1, 0, 0, 0]  
+        self.data.qvel[:] = 0
+        mujoco.mj_forward(self.model, self.data)
+
         
         # Reset blocks using actuators
         for i in range(3):
@@ -79,24 +79,30 @@ class BridgeBuildingEnv(gym.Env):
     
     def step(self, action):
         self.steps += 1
-        
-        # Place blocks according to action
+        #Place blocks according to action
         for i in range(3):
             # Convert action to block position
             block_pos = action[i*3:(i+1)*3]
             # Place block using actuators
             for j, actuator_idx in enumerate(self.block_actuators[i]):
                 self.data.ctrl[actuator_idx] = block_pos[j]
+        for _ in range(5000):
+            mujoco.mj_step(self.model, self.data)
+        block1pos = self.data.sensordata[6:9]
+        block2pos = self.data.sensordata[9:12]
+        block3pos = self.data.sensordata[12:]
+
+        self.data.qvel[:6] = [1, 0, 0, 0, 0, 0]
         
         # Step simulation
-        mujoco.mj_step(self.model, self.data)
+        for _ in range(5000):
+            mujoco.mj_step(self.model, self.data)
         
         # Get observation
         obs = self._get_obs()
         
         # Calculate reward
         (reached, reward) = self._compute_reward()
-        
         # Check if episode is done
         done = (self.steps >= self.max_steps or reached)
         # Additional info
@@ -104,6 +110,11 @@ class BridgeBuildingEnv(gym.Env):
             'ball_pos': self.data.sensordata[0:3],
             'ball_vel': self.data.sensordata[3:6],
         }
+        print(info)
+        # Reset ball position using actuators
+        self.data.qpos[:7] = [-2, 0, 1.2, 1, 0, 0, 0]  
+        self.data.qvel[:] = 0
+        mujoco.mj_forward(self.model, self.data)
         
         return obs, reward, done, False, info
     
@@ -140,9 +151,6 @@ class BridgeBuildingEnv(gym.Env):
         # Penalty for ball falling
         if ball_pos[2] < 0:
             reward -= 10
-        
-        # Small penalty for each step to encourage efficiency
-        reward -= 0.01
         
         return (reached, reward)
     

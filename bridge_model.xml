@@ -35,7 +35,7 @@
         <!-- Ball (initially on left platform) -->
         <body name="ball" pos="-2 0 1.2">
             <geom type="sphere" size="0.1" material="ball"/>
-            <joint type="free"/>
+            <joint name="ball" type="free"/>
         </body>
 
         <!-- Blocks -->
