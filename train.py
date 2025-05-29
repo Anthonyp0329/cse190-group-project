@@ -46,7 +46,7 @@ def main():
     )
     
     # Train the agent
-    total_timesteps = 1_000_000
+    total_timesteps = 10000
     model.learn(
         total_timesteps=total_timesteps,
         callback=eval_callback,
