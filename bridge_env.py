@@ -150,7 +150,7 @@ class BridgeBuildingEnv(gym.Env):
         reward += self.x_before_ground
         
         # Large reward for reaching the right platform
-        if self.x_before_ground==-10:
+        if ball_pos[0]>2:
             reward += 100
             reached = True
         
@@ -160,59 +160,57 @@ class BridgeBuildingEnv(gym.Env):
         
         return (reached, reward)
 
-    def main(self, action, steps=300, fps=20):
+    def main(self, action, viewer, steps=300, fps=20):
         dt = 1.0 / fps
 
         # Create the viewer (blocking call returns a Viewer object)
-        with mj_viewer.launch_passive(self.model, self.data) as viewer:
             # for _ in range(steps):
-            target_pos = np.clip(action, self.action_space.low, self.action_space.high)
+        target_pos = np.clip(action, self.action_space.low, self.action_space.high)
 
-                # Which block do we control this step? 0 → block1, 1 → block2, 2 → block3
-            block_idx = self.steps % len(self.block_qpos_starts)
-            start     = self.block_qpos_starts[block_idx]
+            # Which block do we control this step? 0 → block1, 1 → block2, 2 → block3
+        block_idx = self.steps % len(self.block_qpos_starts)
+        start     = self.block_qpos_starts[block_idx]
 
-            # Teleport the selected block by overwriting its (x, y, z)
-            self.data.qpos[start : start + 3] = target_pos
+        # Teleport the selected block by overwriting its (x, y, z)
+        self.data.qpos[start : start + 3] = target_pos
 
-            # Recompute forward kinematics
+        # Recompute forward kinematics
+        mujoco.mj_forward(self.model, self.data)
+        
+        self.data.qvel[:6] = [1, 0, 0, 0, 0, 0]
+        
+        # Step simulation
+        for _ in range(5000):
+            mujoco.mj_step(self.model, self.data)
             mujoco.mj_forward(self.model, self.data)
-            
-            self.data.qvel[:6] = [1, 0, 0, 0, 0, 0]
-            
-            # Step simulation
-            for _ in range(5000):
-                mujoco.mj_step(self.model, self.data)
-                mujoco.mj_forward(self.model, self.data)
-                # Push latest physics state to the window
-                viewer.sync()
-                # Slow down so you can see what’s happening
-                time.sleep(0.001)
-                # print(self.data.sensordata[0])
-                if self.data.sensordata[2] < 0.2 and self.x_before_ground==-10:
-                    print(self.data.sensordata[0])
-                    self.x_before_ground = self.data.sensordata[0]
-            # Calculate reward
-            (reached, reward) = self._compute_reward()
-            # Check if episode is done
-            done = (self.steps >= self.max_steps-1 or reached)
-            # Additional info
-            info = {
-                'ball_pos': self.data.sensordata[0:3],
-                'ball_vel': self.data.sensordata[3:6],
-            }
-            print(info)
-            # Reset ball position using actuators
-            self.data.qpos[:7] = [-2, 0, 1.2, 1, 0, 0, 0]  
-            self.data.qvel[:] = 0
+            # Push latest physics state to the window
+            viewer.sync()
+            # Slow down so you can see what’s happening
+            time.sleep(0.0005)
+            # print(self.data.sensordata[0])
+            if self.data.sensordata[2] < 0.2 and self.x_before_ground==-10:
+                print(self.data.sensordata[0])
+                self.x_before_ground = self.data.sensordata[0]
+        # Calculate reward
+        (reached, reward) = self._compute_reward()
+        # Check if episode is done
+        done = (self.steps >= self.max_steps-1 or reached)
+        # Additional info
+        info = {
+            'ball_pos': self.data.sensordata[0:3],
+            'ball_vel': self.data.sensordata[3:6],
+        }
+        print(info)
+        # Reset ball position using actuators
+        self.data.qpos[:7] = [-2, 0, 1.2, 1, 0, 0, 0]  
+        self.data.qvel[:] = 0
 
-            # Increment step counter
-            self.steps += 1
+        # Increment step counter
+        self.steps += 1
 
-            # Observation
-            obs = self._get_obs()
+        # Observation
+        obs = self._get_obs()
 
-        self.close()
         return obs, reward, done, False, info
 
     # ---------------------------------------------------------------- render

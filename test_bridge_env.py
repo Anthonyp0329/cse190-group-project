@@ -19,11 +19,13 @@ def main(steps=300, fps=20):
 
     # Create the viewer (blocking call returns a Viewer object)
         # for _ in range(steps):
-    while not done:
-        action, _ = model.predict(obs, deterministic=True)
-        obs, reward, done, _, info = env.main(action)
-        total_r += reward
-        time.sleep(1)
+    with mj_viewer.launch_passive(env.model, env.data) as viewer:
+        while not done:
+            action, _ = model.predict(obs, deterministic=True)
+
+            obs, reward, complete, _, info = env.main(action, viewer)
+            total_r += reward
+            done = complete
 
     env.close()
 
