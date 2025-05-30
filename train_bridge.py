@@ -7,10 +7,10 @@ from stable_baselines3.common.logger import configure
 from bridge_env import BridgeBuildingEnv     # ← your updated env
 
 # ───────────────────────────────────────────────────────────── constants
-PLACEMENT_STEPS        = 5                  # see bridge_env.py
+PLACEMENT_STEPS        = 50                  # see bridge_env.py
 EXTRA_SAFE_STEPS       = 2                  # a couple of spare moves
 MAX_STEPS_PER_EPISODE  = PLACEMENT_STEPS + EXTRA_SAFE_STEPS
-TOTAL_TIMESTEPS        = 50_000            # ~20 k episodes
+TOTAL_TIMESTEPS        = 10000            # ~20 k episodes
 
 # ─────────────────────────────────────────────────────── env factory
 def make_env():
@@ -27,7 +27,7 @@ if __name__ == "__main__":
     model = PPO(
         policy            = "MlpPolicy",
         env               = vec_env,
-        n_steps           = 64,             # shorter rollout because episodes are tiny
+        n_steps           = 32,             # shorter rollout because episodes are tiny
         batch_size        = 32,
         learning_rate     = 3e-4,
         gamma             = 0.99,

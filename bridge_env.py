@@ -1,11 +1,13 @@
 # bridge_env.py – improved version
 import re
+import time
 import gymnasium as gym
 import numpy as np
 import mujoco
 from gymnasium import spaces
 from mujoco.viewer import launch
 import os
+import mujoco.viewer as mj_viewer
 
 
 class BridgeBuildingEnv(gym.Env):
@@ -19,10 +21,10 @@ class BridgeBuildingEnv(gym.Env):
         self.model = mujoco.MjModel.from_xml_path("bridge_model.xml")
         self.data = mujoco.MjData(self.model)
 
-        # Action: desired absolute position (x, y, z) for the ball
+        # Action: desired absolute position (x, y, z) for the box
         self.action_space = spaces.Box(
-            low=np.array([-3.0, -1.0, 0.2], dtype=np.float32),
-            high=np.array([3.0,  1.0, 1.5], dtype=np.float32),
+            low=np.array([-1.0, -1.0, 0.2], dtype=np.float32),
+            high=np.array([1.0,  1.0, 0.5], dtype=np.float32),
             dtype=np.float32,
         )
 
@@ -41,7 +43,9 @@ class BridgeBuildingEnv(gym.Env):
 
         # Track episode steps
         self.steps = 0
-        self.max_steps = 1000
+        self.max_steps = 50
+        
+        self.x_before_ground = -10
 
         # Free‑joint handles for the three blocks
         self.block_joints = [
@@ -84,24 +88,40 @@ class BridgeBuildingEnv(gym.Env):
 
         # Recompute forward kinematics
         mujoco.mj_forward(self.model, self.data)
+        
+        self.data.qvel[:6] = [1, 0, 0, 0, 0, 0]
+        
+        # Step simulation
+        for _ in range(5000):
+            mujoco.mj_step(self.model, self.data)
+            mujoco.mj_forward(self.model, self.data)
+            if self.data.sensordata[2] < 0.2 and self.x_before_ground==-10:
+                self.x_before_ground = self.data.sensordata[0]
+        
+        # Calculate reward
+        (reached, reward) = self._compute_reward()
+        print(reward, end="\r")
 
+        # Check if episode is done
+        done = (self.steps >= self.max_steps or reached)
+        # Additional info
+        info = {
+            'ball_pos': self.data.sensordata[0:3],
+            'ball_vel': self.data.sensordata[3:6],
+        }
+        # Reset ball position using actuators
+        self.data.qpos[:7] = [-2, 0, 1.2, 1, 0, 0, 0]  
+        self.data.qvel[:] = 0
+        
         # Increment step counter
         self.steps += 1
+        self.x_before_ground = -10
+        mujoco.mj_forward(self.model, self.data)
 
         # Observation
         obs = self._get_obs()
 
-        # Dummy reward / termination (no terminal condition yet)
-        reward     = 0.0
-        terminated = False
-        truncated  = False
-
-        info = {
-            "controlled_block": block_idx + 1,
-            "block_pos": target_pos,
-        }
-        return obs, reward, terminated, truncated, info
-
+        return obs, reward, done, False, info
 
     # ---------------------------------------------------------------- utils
 
@@ -118,6 +138,82 @@ class BridgeBuildingEnv(gym.Env):
             self.data.sensordata[6:15].astype(np.float32),  # Block positions
             platform_positions  # Platform positions
         ])
+    
+    def _compute_reward(self):
+        reward = 0
+        reached = False
+        
+        # Get ball position
+        ball_pos = self.data.sensordata[0:3]
+        
+        # Reward for ball moving forward (x-coordinate)
+        reward += self.x_before_ground
+        
+        # Large reward for reaching the right platform
+        if self.x_before_ground==-10:
+            reward += 100
+            reached = True
+        
+        # # Penalty for ball falling
+        # if ball_pos[2] < 0:
+        #     reward -= 10
+        
+        return (reached, reward)
+
+    def main(self, action, steps=300, fps=20):
+        dt = 1.0 / fps
+
+        # Create the viewer (blocking call returns a Viewer object)
+        with mj_viewer.launch_passive(self.model, self.data) as viewer:
+            # for _ in range(steps):
+            target_pos = np.clip(action, self.action_space.low, self.action_space.high)
+
+                # Which block do we control this step? 0 → block1, 1 → block2, 2 → block3
+            block_idx = self.steps % len(self.block_qpos_starts)
+            start     = self.block_qpos_starts[block_idx]
+
+            # Teleport the selected block by overwriting its (x, y, z)
+            self.data.qpos[start : start + 3] = target_pos
+
+            # Recompute forward kinematics
+            mujoco.mj_forward(self.model, self.data)
+            
+            self.data.qvel[:6] = [1, 0, 0, 0, 0, 0]
+            
+            # Step simulation
+            for _ in range(5000):
+                mujoco.mj_step(self.model, self.data)
+                mujoco.mj_forward(self.model, self.data)
+                # Push latest physics state to the window
+                viewer.sync()
+                # Slow down so you can see what’s happening
+                time.sleep(0.001)
+                # print(self.data.sensordata[0])
+                if self.data.sensordata[2] < 0.2 and self.x_before_ground==-10:
+                    print(self.data.sensordata[0])
+                    self.x_before_ground = self.data.sensordata[0]
+            # Calculate reward
+            (reached, reward) = self._compute_reward()
+            # Check if episode is done
+            done = (self.steps >= self.max_steps-1 or reached)
+            # Additional info
+            info = {
+                'ball_pos': self.data.sensordata[0:3],
+                'ball_vel': self.data.sensordata[3:6],
+            }
+            print(info)
+            # Reset ball position using actuators
+            self.data.qpos[:7] = [-2, 0, 1.2, 1, 0, 0, 0]  
+            self.data.qvel[:] = 0
+
+            # Increment step counter
+            self.steps += 1
+
+            # Observation
+            obs = self._get_obs()
+
+        self.close()
+        return obs, reward, done, False, info
 
     # ---------------------------------------------------------------- render
     def render(self):
@@ -127,3 +223,12 @@ class BridgeBuildingEnv(gym.Env):
     def close(self):
         # The viewer is automatically closed when the window is closed
         pass
+    
+    
+    
+if __name__ == "__main__":
+    env = BridgeBuildingEnv()
+    _, _ = env.reset()
+    action = env.action_space.sample()
+    # action = [-1, 0, 1]
+    env.main(action)
