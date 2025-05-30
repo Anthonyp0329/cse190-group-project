@@ -40,38 +40,18 @@
 
         <!-- Blocks -->
         <body name="block1" pos="-1 -1 0.5">
-            <joint name="block1_x" type="slide" axis="1 0 0" range="-2 2" limited="true"/>
-            <joint name="block1_y" type="slide" axis="0 1 0" range="-1 1" limited="true"/>
-            <joint name="block1_z" type="slide" axis="0 0 1" range="0 1" limited="true"/>
+            <joint name="block1_free" type="free"/>
             <geom type="box" size="0.5 0.5 0.5" mass="1" material="block" rgba="0.2 0.6 0.8 1"/>
         </body>
         <body name="block2" pos="0 -1 0.5">
-            <joint name="block2_x" type="slide" axis="1 0 0" range="-2 2" limited="true"/>
-            <joint name="block2_y" type="slide" axis="0 1 0" range="-1 1" limited="true"/>
-            <joint name="block2_z" type="slide" axis="0 0 1" range="0 1" limited="true"/>
+            <joint name="block2_free" type="free"/>
             <geom type="box" size="0.5 0.5 0.5" mass="1" material="block" rgba="0.2 0.6 0.8 1"/>
         </body>
         <body name="block3" pos="1 -1 0.5">
-            <joint name="block3_x" type="slide" axis="1 0 0" range="-2 2" limited="true"/>
-            <joint name="block3_y" type="slide" axis="0 1 0" range="-1 1" limited="true"/>
-            <joint name="block3_z" type="slide" axis="0 0 1" range="0 1" limited="true"/>
+            <joint name="block3_free" type="free"/>
             <geom type="box" size="0.5 0.5 0.5" mass="1" material="block" rgba="0.2 0.6 0.8 1"/>
         </body>
     </worldbody>
-
-    <!-- Actuators -->
-    <actuator>
-        <!-- Position actuators for blocks -->
-        <position name="block1_x" joint="block1_x" gear="1 0 0 0 0 0" kp="100" ctrlrange="-2 2"/>
-        <position name="block1_y" joint="block1_y" gear="1 0 0 0 0 0" kp="100"  ctrlrange="-0.5 0.5"/>
-        <position name="block1_z" joint="block1_z" gear="1 0 0 0 0 0" kp="100" ctrlrange="0 1"/>
-        <position name="block2_x" joint="block2_x" gear="1 0 0 0 0 0" kp="100" ctrlrange="-2 2"/>
-        <position name="block2_y" joint="block2_y" gear="1 0 0 0 0 0" kp="100" ctrlrange="-0.5 0.5"/>
-        <position name="block2_z" joint="block2_z" gear="1 0 0 0 0 0" kp="100" ctrlrange="0 1"/>
-        <position name="block3_x" joint="block3_x" gear="1 0 0 0 0 0" kp="100" ctrlrange="-2 2"/>
-        <position name="block3_y" joint="block3_y" gear="1 0 0 0 0 0" kp="100" ctrlrange="-0.5 0.5"/>
-        <position name="block3_z" joint="block3_z" gear="1 0 0 0 0 0" kp="100" ctrlrange="0 1"/>
-    </actuator>
 
     <!-- Sensors -->
     <sensor>
@@ -89,19 +69,19 @@
     <keyframe>
         <!-- State vector format:
              Ball (free joint): 7 values [x,y,z,qw,qx,qy,qz]
-             Block1 (3 slide joints): 3 values [x,y,z]
-             Block2 (3 slide joints): 3 values [x,y,z]
-             Block3 (3 slide joints): 3 values [x,y,z]
-             Total qpos: 16 values
+             Block1 (free joint): 7 values [x,y,z,qw,qx,qy,qz]
+             Block2 (free joint): 7 values [x,y,z,qw,qx,qy,qz]
+             Block3 (free joint): 7 values [x,y,z,qw,qx,qy,qz]
+             Total qpos: 28 values
              
              Velocity vector format:
              Ball (free joint): 6 values [vx,vy,vz,wx,wy,wz]
-             Block1 (3 slide joints): 3 values [vx,vy,vz]
-             Block2 (3 slide joints): 3 values [vx,vy,vz]
-             Block3 (3 slide joints): 3 values [vx,vy,vz]
-             Total qvel: 15 values -->
+             Block1 (free joint): 6 values [vx,vy,vz,wx,wy,wz]
+             Block2 (free joint): 6 values [vx,vy,vz,wx,wy,wz]
+             Block3 (free joint): 6 values [vx,vy,vz,wx,wy,wz]
+             Total qvel: 24 values -->
         <key name="init" 
-             qpos="-2 0 1.2 1 0 0 0 0 0 0 0 0 0 0 0 0"
-             qvel="1 0 0 0 0 0 0 0 0 0 0 0 0 0 0"/>
+             qpos="-2 0 1.2 1 0 0 0 -1 -1 0.5 1 0 0 0 0 -1 0.5 1 0 0 0 1 -1 0.5 1 0 0 0"
+             qvel="1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0"/>
     </keyframe>
 </mujoco> 
