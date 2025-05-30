@@ -1,108 +1,107 @@
+# bridge_env.py – improved version
+import re
+import time
 import gymnasium as gym
 import numpy as np
-from gymnasium import spaces
 import mujoco
+from gymnasium import spaces
 from mujoco.viewer import launch
 import os
+import mujoco.viewer as mj_viewer
+
 
 class BridgeBuildingEnv(gym.Env):
+    metadata = {"render_modes": ["human"]}
+
+    # ------------------------------------------------------------------ init
     def __init__(self):
         super().__init__()
-        
+
         # Load the MuJoCo model
         self.model = mujoco.MjModel.from_xml_path("bridge_model.xml")
         self.data = mujoco.MjData(self.model)
-        
-        # Define action and observation spaces
-        # Action space: 9 continuous values (x,y,z for each of 3 blocks)
+
+        # Action: desired absolute position (x, y, z) for the box
         self.action_space = spaces.Box(
-            low=np.array([-2, -5, 0, -2, -5, 0, -2, -5, 0], dtype=np.float32),
-            high=np.array([2, 5, 5, 2, 5, 5, 2, 5, 5], dtype=np.float32),
-            dtype=np.float32
+            low=np.array([-1.0, -1.0, 0.2], dtype=np.float32),
+            high=np.array([1.0,  1.0, 0.5], dtype=np.float32),
+            dtype=np.float32,
         )
-        
-        # Observation space: positions of ball and blocks, ball velocity
+
+        # Define observation space (block positions + platform positions)
         self.observation_space = spaces.Box(
             low=-np.inf,
             high=np.inf,
-            shape=(15,),  # 3 for ball pos, 3 for ball vel, 3 for each block pos
+            shape=(15,),  # 9 values for block positions + 6 values for platform positions (2 platforms × 3 coordinates)
             dtype=np.float32
         )
-        
+
+        # Simulation control
+        self.simulation_started = False
+        self.initial_ball_velocity = np.array([1.0, 0.0, 0.0])  # 1 unit/s to the right
+        self.velocity_threshold = 0.01  # Threshold for considering ball stopped
+
         # Track episode steps
         self.steps = 0
-        self.max_steps = 1  
-                
-        # Get actuator indices
-        self.ball_actuators = []
-        self.block_actuators = []
+        self.max_steps = 50
         
-        # Find actuator indices by name
-        for i in range(self.model.nu):
-            name = mujoco.mj_id2name(self.model, mujoco.mjtObj.mjOBJ_ACTUATOR, i)
-            if name.startswith('ball_'):
-                self.ball_actuators.append(i)
-            elif name.startswith('block'):
-                block_num = int(name[5]) - 1  # Convert block1_x to 0, block2_x to 1, etc.
-                if len(self.block_actuators) <= block_num:
-                    self.block_actuators.append([])
-                self.block_actuators[block_num].append(i)
-        # Sort actuators to ensure x,y,z order
-        self.ball_actuators.sort(key=lambda i: mujoco.mj_id2name(self.model, mujoco.mjtObj.mjOBJ_ACTUATOR, i))
-        for block_acts in self.block_actuators:
-            block_acts.sort(key=lambda i: mujoco.mj_id2name(self.model, mujoco.mjtObj.mjOBJ_ACTUATOR, i))
-        
-    def reset(self, seed=None):
+        self.x_before_ground = -10
+
+        # Free‑joint handles for the three blocks
+        self.block_joints = [
+            mujoco.mj_name2id(self.model, mujoco.mjtObj.mjOBJ_JOINT, f"block{i}_free")
+            for i in range(1, 4)
+        ]
+        # Starting qpos index (x, y, z, qw, qx, qy, qz) for each block
+        self.block_qpos_starts = [
+            self.model.jnt_qposadr[jid] for jid in self.block_joints
+        ]
+        # Get joint index for ball
+        self.ball_joint = mujoco.mj_name2id(self.model, mujoco.mjtObj.mjOBJ_JOINT, "ball_free")
+        # qpos start index for the ball’s free joint (x, y, z, qw, qx, qy, qz)
+        self.ball_qpos_start = self.model.jnt_qposadr[self.ball_joint]
+
+    # ---------------------------------------------------------------- reset
+    def reset(self, seed=None, options=None):
         super().reset(seed=seed)
-        
-        # Reset MuJoCo simulation
         mujoco.mj_resetData(self.model, self.data)
-        
-        # Directly set ball position
-        self.data.qpos[:7] = [-2, 0, 1.2, 1, 0, 0, 0]  
-        self.data.qvel[:] = 0
-        mujoco.mj_forward(self.model, self.data)
-
-        
-        # Reset blocks using actuators
-        for i in range(3):
-            block_pos = [0, (i-1)*3, 0.5]
-            for j, actuator_idx in enumerate(self.block_actuators[i]):
-                self.data.ctrl[actuator_idx] = block_pos[j]
-        
-        # Reset episode tracking
+        mujoco.mj_forward(self.model, self.data)          # <-- add
+        self.simulation_started = False
         self.steps = 0
-        
-        # Get initial observation
-        obs = self._get_obs()
-        return obs, {}
-    
-    def step(self, action):
-        self.steps += 1
-        #Place blocks according to action
-        for i in range(3):
-            # Convert action to block position
-            block_pos = action[i*3:(i+1)*3]
-            # Place block using actuators
-            for j, actuator_idx in enumerate(self.block_actuators[i]):
-                self.data.ctrl[actuator_idx] = block_pos[j]
-        for _ in range(5000):
-            mujoco.mj_step(self.model, self.data)
-        block1pos = self.data.sensordata[6:9]
-        block2pos = self.data.sensordata[9:12]
-        block3pos = self.data.sensordata[12:]
+        return self._get_obs(), {}
 
+    # ---- step ----------------------------------------------------------------
+    def step(self, action):
+        """
+        Teleport a block by overwriting the translational (x, y, z) part of
+        its free joint according to the action. Control alternates between blocks.
+        """
+        # Clip action to bounds
+        target_pos = np.clip(action, self.action_space.low, self.action_space.high)
+
+        # Which block do we control this step? 0 → block1, 1 → block2, 2 → block3
+        block_idx = self.steps % len(self.block_qpos_starts)
+        start     = self.block_qpos_starts[block_idx]
+
+        # Teleport the selected block by overwriting its (x, y, z)
+        self.data.qpos[start : start + 3] = target_pos
+
+        # Recompute forward kinematics
+        mujoco.mj_forward(self.model, self.data)
+        
         self.data.qvel[:6] = [1, 0, 0, 0, 0, 0]
         
         # Step simulation
         for _ in range(5000):
             mujoco.mj_step(self.model, self.data)
-        
-        # Get observation
-        obs = self._get_obs()
+            mujoco.mj_forward(self.model, self.data)
+            if self.data.sensordata[2] < 0.2 and self.x_before_ground==-10:
+                self.x_before_ground = self.data.sensordata[0]
         
         # Calculate reward
         (reached, reward) = self._compute_reward()
+        print(reward, end="\r")
+
         # Check if episode is done
         done = (self.steps >= self.max_steps or reached)
         # Additional info
@@ -110,28 +109,35 @@ class BridgeBuildingEnv(gym.Env):
             'ball_pos': self.data.sensordata[0:3],
             'ball_vel': self.data.sensordata[3:6],
         }
-        print(info)
         # Reset ball position using actuators
         self.data.qpos[:7] = [-2, 0, 1.2, 1, 0, 0, 0]  
         self.data.qvel[:] = 0
+        
+        # Increment step counter
+        self.steps += 1
+        self.x_before_ground = -10
         mujoco.mj_forward(self.model, self.data)
-        
+
+        # Observation
+        obs = self._get_obs()
+
         return obs, reward, done, False, info
-    
+
+    # ---------------------------------------------------------------- utils
+
     def _get_obs(self):
-        # Get ball position and velocity
-        ball_pos = self.data.sensordata[0:3]
-        ball_vel = self.data.sensordata[3:6]
+        # Return block positions and platform positions as observation
+        # Block positions (9 values) + platform positions (6 values)
+        # Platform positions are fixed: left platform at origin, right platform at GOAL_X
+        platform_positions = np.array([
+            -2.0, 0.0, 0.5,  # Left platform (x, y, z)
+            2.0, 0.0, 0.5  # Right platform (x, y, z)
+        ], dtype=np.float32)
         
-        # Get block positions
-        block_positions = []
-        for i in range(3):
-            block_pos = self.data.sensordata[6+i*3:9+i*3]
-            block_positions.extend(block_pos)
-        
-        # Combine all observations
-        obs = np.concatenate([ball_pos, ball_vel, block_positions])
-        return obs.astype(np.float32)
+        return np.concatenate([
+            self.data.sensordata[6:15].astype(np.float32),  # Block positions
+            platform_positions  # Platform positions
+        ])
     
     def _compute_reward(self):
         reward = 0
@@ -141,23 +147,88 @@ class BridgeBuildingEnv(gym.Env):
         ball_pos = self.data.sensordata[0:3]
         
         # Reward for ball moving forward (x-coordinate)
-        reward += ball_pos[0] * 0.1
+        reward += self.x_before_ground
         
         # Large reward for reaching the right platform
-        if ball_pos[0] > 1.8 and abs(ball_pos[1]) < 0.5 and ball_pos[2] > 0.3:
+        if self.x_before_ground==-10:
             reward += 100
             reached = True
         
-        # Penalty for ball falling
-        if ball_pos[2] < 0:
-            reward -= 10
+        # # Penalty for ball falling
+        # if ball_pos[2] < 0:
+        #     reward -= 10
         
         return (reached, reward)
-    
+
+    def main(self, action, steps=300, fps=20):
+        dt = 1.0 / fps
+
+        # Create the viewer (blocking call returns a Viewer object)
+        with mj_viewer.launch_passive(self.model, self.data) as viewer:
+            # for _ in range(steps):
+            target_pos = np.clip(action, self.action_space.low, self.action_space.high)
+
+                # Which block do we control this step? 0 → block1, 1 → block2, 2 → block3
+            block_idx = self.steps % len(self.block_qpos_starts)
+            start     = self.block_qpos_starts[block_idx]
+
+            # Teleport the selected block by overwriting its (x, y, z)
+            self.data.qpos[start : start + 3] = target_pos
+
+            # Recompute forward kinematics
+            mujoco.mj_forward(self.model, self.data)
+            
+            self.data.qvel[:6] = [1, 0, 0, 0, 0, 0]
+            
+            # Step simulation
+            for _ in range(5000):
+                mujoco.mj_step(self.model, self.data)
+                mujoco.mj_forward(self.model, self.data)
+                # Push latest physics state to the window
+                viewer.sync()
+                # Slow down so you can see what’s happening
+                time.sleep(0.001)
+                # print(self.data.sensordata[0])
+                if self.data.sensordata[2] < 0.2 and self.x_before_ground==-10:
+                    print(self.data.sensordata[0])
+                    self.x_before_ground = self.data.sensordata[0]
+            # Calculate reward
+            (reached, reward) = self._compute_reward()
+            # Check if episode is done
+            done = (self.steps >= self.max_steps-1 or reached)
+            # Additional info
+            info = {
+                'ball_pos': self.data.sensordata[0:3],
+                'ball_vel': self.data.sensordata[3:6],
+            }
+            print(info)
+            # Reset ball position using actuators
+            self.data.qpos[:7] = [-2, 0, 1.2, 1, 0, 0, 0]  
+            self.data.qvel[:] = 0
+
+            # Increment step counter
+            self.steps += 1
+
+            # Observation
+            obs = self._get_obs()
+
+        self.close()
+        return obs, reward, done, False, info
+
+    # ---------------------------------------------------------------- render
     def render(self):
         # Launch the viewer
         launch(self.model, self.data)
-    
+
     def close(self):
         # The viewer is automatically closed when the window is closed
-        pass 
+        pass
+    
+    
+    
+if __name__ == "__main__":
+    env = BridgeBuildingEnv()
+    _, _ = env.reset()
+    action = env.action_space.sample()
+    # action = [-1, 0, 1]
+    env.main(action)

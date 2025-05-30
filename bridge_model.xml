@@ -34,44 +34,24 @@
         
         <!-- Ball (initially on left platform) -->
         <body name="ball" pos="-2 0 1.2">
-            <geom type="sphere" size="0.1" material="ball"/>
-            <joint name="ball" type="free"/>
+            <joint name="ball_free" type="free"/>
+            <geom type="sphere" size="0.1" material="ball" solimp="0.9 0.95 0.001" solref="0.001 1" mass="0.1"/>
         </body>
 
         <!-- Blocks -->
-        <body name="block1" pos="0 3 0.5">
-            <joint name="block1_x" type="slide" axis="1 0 0" range="-2 2"/>
-            <joint name="block1_y" type="slide" axis="0 1 0" range="-5 5"/>
-            <joint name="block1_z" type="slide" axis="0 0 1" range="0 5"/>
-            <geom type="box" size="0.5 0.5 0.5" material="block" rgba="0.2 0.6 0.8 1"/>
+        <body name="block1" pos="-1 -5 0.5">
+            <joint name="block1_free" type="free"/>
+            <geom type="box" size="0.5 0.5 0.5" mass="1" material="block" rgba="0.2 0.6 0.8 1"/>
         </body>
-        <body name="block2" pos="0 -3 0.5">
-            <joint name="block2_x" type="slide" axis="1 0 0" range="-2 2"/>
-            <joint name="block2_y" type="slide" axis="0 1 0" range="-5 5"/>
-            <joint name="block2_z" type="slide" axis="0 0 1" range="0 5"/>
-            <geom type="box" size="0.5 0.5 0.5" material="block" rgba="0.2 0.6 0.8 1"/>
+        <body name="block2" pos="0 -5 0.5">
+            <joint name="block2_free" type="free"/>
+            <geom type="box" size="0.5 0.5 0.5" mass="1" material="block" rgba="0.2 0.6 0.8 1"/>
         </body>
-        <body name="block3" pos="0 0 0.5">
-            <joint name="block3_x" type="slide" axis="1 0 0" range="-2 2"/>
-            <joint name="block3_y" type="slide" axis="0 1 0" range="-5 5"/>
-            <joint name="block3_z" type="slide" axis="0 0 1" range="0 5"/>
-            <geom type="box" size="0.5 0.5 0.5" material="block" rgba="0.2 0.6 0.8 1"/>
+        <body name="block3" pos="1 -5 0.5">
+            <joint name="block3_free" type="free"/>
+            <geom type="box" size="0.5 0.5 0.5" mass="1" material="block" rgba="0.2 0.6 0.8 1"/>
         </body>
     </worldbody>
-
-    <!-- Actuators -->
-    <actuator>
-        <!-- Position actuators for block placement -->
-        <position name="block1_x" joint="block1_x" gear="1 0 0 0 0 0"/>
-        <position name="block1_y" joint="block1_y" gear="0 1 0 0 0 0"/>
-        <position name="block1_z" joint="block1_z" gear="0 0 1 0 0 0"/>
-        <position name="block2_x" joint="block2_x" gear="1 0 0 0 0 0"/>
-        <position name="block2_y" joint="block2_y" gear="0 1 0 0 0 0"/>
-        <position name="block2_z" joint="block2_z" gear="0 0 1 0 0 0"/>
-        <position name="block3_x" joint="block3_x" gear="1 0 0 0 0 0"/>
-        <position name="block3_y" joint="block3_y" gear="0 1 0 0 0 0"/>
-        <position name="block3_z" joint="block3_z" gear="0 0 1 0 0 0"/>
-    </actuator>
 
     <!-- Sensors -->
     <sensor>
@@ -84,4 +64,24 @@
         <framepos name="block2_pos" objtype="body" objname="block2"/>
         <framepos name="block3_pos" objtype="body" objname="block3"/>
     </sensor>
+
+    <!-- Keyframes -->
+    <keyframe>
+        <!-- State vector format:
+             Ball (free joint): 7 values [x,y,z,qw,qx,qy,qz]
+             Block1 (free joint): 7 values [x,y,z,qw,qx,qy,qz]
+             Block2 (free joint): 7 values [x,y,z,qw,qx,qy,qz]
+             Block3 (free joint): 7 values [x,y,z,qw,qx,qy,qz]
+             Total qpos: 28 values
+             
+             Velocity vector format:
+             Ball (free joint): 6 values [vx,vy,vz,wx,wy,wz]
+             Block1 (free joint): 6 values [vx,vy,vz,wx,wy,wz]
+             Block2 (free joint): 6 values [vx,vy,vz,wx,wy,wz]
+             Block3 (free joint): 6 values [vx,vy,vz,wx,wy,wz]
+             Total qvel: 24 values -->
+        <key name="init" 
+             qpos="-2 0 1.2 1 0 0 0 -1 -1 0.5 1 0 0 0 0 -1 0.5 1 0 0 0 1 -1 0.5 1 0 0 0"
+             qvel="1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0"/>
+    </keyframe>
 </mujoco> 
