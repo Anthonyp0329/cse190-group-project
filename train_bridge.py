@@ -10,7 +10,7 @@ from bridge_env import BridgeBuildingEnv     # ← your updated env
 PLACEMENT_STEPS        = 50                  # see bridge_env.py
 EXTRA_SAFE_STEPS       = 2                  # a couple of spare moves
 MAX_STEPS_PER_EPISODE  = PLACEMENT_STEPS + EXTRA_SAFE_STEPS
-TOTAL_TIMESTEPS        = 10000            # ~20 k episodes
+TOTAL_TIMESTEPS        = 5000            # ~20 k episodes
 
 # ─────────────────────────────────────────────────────── env factory
 def make_env():

@@ -23,8 +23,8 @@ class BridgeBuildingEnv(gym.Env):
 
         # Action: desired absolute position (x, y, z) for the box
         self.action_space = spaces.Box(
-            low=np.array([-1.0, -1.0, 0.2], dtype=np.float32),
-            high=np.array([1.0,  1.0, 0.5], dtype=np.float32),
+            low=np.array([-1.0, 0, 0.2], dtype=np.float32),
+            high=np.array([1.0,  0, 0.5], dtype=np.float32),
             dtype=np.float32,
         )
 
