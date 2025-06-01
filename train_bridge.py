@@ -2,6 +2,7 @@
 import gymnasium as gym
 from stable_baselines3 import PPO
 from stable_baselines3.common.vec_env import DummyVecEnv
+from stable_baselines3.common.vec_env import VecNormalize
 from stable_baselines3.common.logger import configure
 
 from bridge_env import BridgeBuildingEnv     # ← your updated env
@@ -10,7 +11,7 @@ from bridge_env import BridgeBuildingEnv     # ← your updated env
 PLACEMENT_STEPS        = 50                  # see bridge_env.py
 EXTRA_SAFE_STEPS       = 2                  # a couple of spare moves
 MAX_STEPS_PER_EPISODE  = PLACEMENT_STEPS + EXTRA_SAFE_STEPS
-TOTAL_TIMESTEPS        = 5000            # ~20 k episodes
+TOTAL_TIMESTEPS        = 50000            # ~20 k episodes
 
 # ─────────────────────────────────────────────────────── env factory
 def make_env():
@@ -22,6 +23,8 @@ def make_env():
 # ─────────────────────────────────────────────────────────── training
 if __name__ == "__main__":
     vec_env  = DummyVecEnv([make_env])      # single process → deterministic
+    # Normalise observations and rewards for stabler PPO training
+    vec_env = VecNormalize(vec_env, norm_obs=True, norm_reward=True, clip_obs=10.0)
     logger   = configure("runs", ["stdout", "tensorboard"])
 
     model = PPO(
@@ -39,17 +42,24 @@ if __name__ == "__main__":
     model.set_logger(logger)
     model.learn(total_timesteps=TOTAL_TIMESTEPS)
     model.save("ppo_bridge")
+    # Save normalisation statistics
+    vec_env.save("vecnormalize_bridge.pkl")
 
     # ─────────────────────────────────────────────────────── evaluation
     print("\n=== demo rollout with trained policy ===")
-    demo_env, _ = make_env().envs[0], None     # unwrap DummyVecEnv -> real env
-    obs, info   = demo_env.reset()
-    done        = False
-    total_r     = 0.0
+    demo_env = DummyVecEnv([make_env])
+    demo_env = VecNormalize.load("vecnormalize_bridge.pkl", demo_env)
+    demo_env.training = False          # turn off updating stats
+    demo_env.norm_reward = False       # but keep obs normalisation
+    obs, _ = demo_env.reset()
+    done   = False
+    total_r = 0.0
 
     while not done:
         action, _ = model.predict(obs, deterministic=True)
         obs, reward, done, _, info = demo_env.step(action)
+        reward = reward[0]           # unwrap vector env reward
+        done   = done[0]
         total_r += reward
         demo_env.render()                      # comment out if running headless
 

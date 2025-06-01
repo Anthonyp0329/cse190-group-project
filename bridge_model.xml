@@ -23,7 +23,7 @@
         <geom type="plane" size="10 10 0.1" rgba="0.8 0.8 0.8 1"/>
         
         <!-- Left Platform -->
-        <body name="left_platform" pos="-2 0 0.5">
+        <body name="left_platform" pos="-1.25 0 1">
             <geom type="box" size="0.5 0.5 0.5" material="platform"/>
         </body>
         
@@ -33,7 +33,7 @@
         </body>
         
         <!-- Ball (initially on left platform) -->
-        <body name="ball" pos="-2 0 1.2">
+        <body name="ball" pos="-1.25 0 2.2">
             <joint name="ball_free" type="free"/>
             <geom type="sphere" size="0.1" material="ball" solimp="0.9 0.95 0.001" solref="0.001 1" mass="0.1"/>
         </body>
@@ -65,23 +65,4 @@
         <framepos name="block3_pos" objtype="body" objname="block3"/>
     </sensor>
 
-    <!-- Keyframes -->
-    <keyframe>
-        <!-- State vector format:
-             Ball (free joint): 7 values [x,y,z,qw,qx,qy,qz]
-             Block1 (free joint): 7 values [x,y,z,qw,qx,qy,qz]
-             Block2 (free joint): 7 values [x,y,z,qw,qx,qy,qz]
-             Block3 (free joint): 7 values [x,y,z,qw,qx,qy,qz]
-             Total qpos: 28 values
-             
-             Velocity vector format:
-             Ball (free joint): 6 values [vx,vy,vz,wx,wy,wz]
-             Block1 (free joint): 6 values [vx,vy,vz,wx,wy,wz]
-             Block2 (free joint): 6 values [vx,vy,vz,wx,wy,wz]
-             Block3 (free joint): 6 values [vx,vy,vz,wx,wy,wz]
-             Total qvel: 24 values -->
-        <key name="init" 
-             qpos="-2 0 1.2 1 0 0 0 -1 -1 0.5 1 0 0 0 0 -1 0.5 1 0 0 0 1 -1 0.5 1 0 0 0"
-             qvel="1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0"/>
-    </keyframe>
 </mujoco> 
