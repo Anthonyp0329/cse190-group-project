@@ -5,9 +5,9 @@ from stable_baselines3.common.vec_env import DummyVecEnv, SubprocVecEnv
 from stable_baselines3.common.vec_env import VecNormalize
 from stable_baselines3.common.logger import configure
 from stable_baselines3.common.callbacks import BaseCallback
+from stable_baselines3.common.monitor import Monitor
 import os
 from pathlib import Path
-from stable_baselines3.common.monitor import Monitor
 
 from bridge_env import BridgeBuildingEnv     # ← your updated env
 
@@ -47,14 +47,12 @@ class VecNormCheckpointCallback(BaseCallback):
 # ─────────────────────────────────────────────────────── env factory
 def make_env():
     env = BridgeBuildingEnv()
-    # hard‑cap each episode length
-    env = gym.wrappers.TimeLimit(env, max_episode_steps=MAX_STEPS_PER_EPISODE)
     return env
 
 # ─────────────────────────────────────────────────────────── training
 if __name__ == "__main__":
     # launch several envs in parallel for higher throughput
-    vec_env  = SubprocVecEnv([Monitor(make_env()) for _ in range(NUM_ENVS)])
+    vec_env = SubprocVecEnv([make_env for _ in range(NUM_ENVS)])  # Pass the function, don't call it
     # Normalise observations and rewards for stabler PPO training
     vec_env = VecNormalize(vec_env, norm_obs=True, norm_reward=True, clip_obs=10.0)
     # vec_env = VecNormalize.load("vecnormalize_bridge.pkl", vec_env)
