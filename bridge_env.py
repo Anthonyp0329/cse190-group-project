@@ -66,10 +66,10 @@ class BridgeBuildingEnv(gym.Env):
         ]
         # will store last "settled" world positions of blocks to detect movement
         self.prev_block_pos = np.zeros((self.num_blocks, 3), dtype=np.float32)
-        # store the first “settled” position for each block; used for distance‑scaled penalties
+        # store the first "settled" position for each block; used for distance‑scaled penalties
         self.initial_block_pos = np.zeros((self.num_blocks, 3), dtype=np.float32)
-        # scaling factor for movement penalty (negative reward per metre moved)
-        self.movement_penalty_scale = 2.0   # tune as needed
+        # scaling factor for movement penalty (negative reward per metre moved)
+        self.movement_penalty_scale = 0.5   # tune as needed
         # Get joint index for ball
         self.ball_joint = mujoco.mj_name2id(self.model, mujoco.mjtObj.mjOBJ_JOINT, "ball_free")
         # qpos start index for the ball's free joint (x, y, z, qw, qx, qy, qz)
@@ -149,7 +149,9 @@ class BridgeBuildingEnv(gym.Env):
         self.data.qpos[start : start + 3] = target_pos
 
         # remember where this block was *placed*; later movement will be punished
-        self.initial_block_pos[block_idx] = target_pos
+        for i in range(self.num_blocks):
+            start = self.block_qpos_starts[i]
+            self.initial_block_pos[i] = self.data.qpos[start : start + 3]
 
         # Recompute forward kinematics
         mujoco.mj_forward(self.model, self.data)
@@ -180,8 +182,8 @@ class BridgeBuildingEnv(gym.Env):
         # Distance‑scaled penalty for blocks that drift after placement
         # ------------------------------------------------------------
         movement_penalty = 0.0
-        tolerance = 0.02                         # ignore micro‑vibrations (<2 cm)
-        for i in range(block_idx + 1):
+        tolerance = 0.02                         # ignore micro‑vibrations (<2 cm)
+        for i in range(self.num_blocks):
             cur  = self.data.sensordata[6 + 3 * i : 9 + 3 * i]
             dist = np.linalg.norm(cur - self.initial_block_pos[i])
             if dist > tolerance:
@@ -269,16 +271,21 @@ class BridgeBuildingEnv(gym.Env):
 
         self.data.qpos[self.ball_qpos_start:self.ball_qpos_start + 3] = self.ball_position_rest
 
-        # Create the viewer (blocking call returns a Viewer object)
-            # for _ in range(steps):
+        # Clip action to bounds
         action = np.clip(action, self.action_space.low, self.action_space.high)
-        target_pos     = action
-            # Which block do we control this step? 0 → block1, 1 → block2, 2 → block3
+        target_pos = action
+
+        # Which block do we control this step? 0 → block1, 1 → block2, 2 → block3
         block_idx = self.steps % self.num_blocks
-        start     = self.block_qpos_starts[block_idx]
+        start = self.block_qpos_starts[block_idx]
 
         # Teleport the selected block by overwriting its (x, y, z)
         self.data.qpos[start : start + 3] = target_pos
+
+        # remember where this block was *placed*; later movement will be punished
+        for i in range(self.num_blocks):
+            start = self.block_qpos_starts[i]
+            self.initial_block_pos[i] = self.data.qpos[start : start + 3]
 
         # Recompute forward kinematics
         mujoco.mj_forward(self.model, self.data)
@@ -287,44 +294,60 @@ class BridgeBuildingEnv(gym.Env):
         for _ in range(200):
             mujoco.mj_step(self.model, self.data)
             mujoco.mj_forward(self.model, self.data)
-            # Push latest physics state to the window
             viewer.sync()
-            # Slow down so you can see what's happening
             time.sleep(0.001)
         self.data.qvel[:6] = [self.ball_speed, 0, 0, 0, 0, 0]
         
         # Step simulation
         reward = 0
         reached = False
-        for _ in range(1000):
+        self.x_before_ground = -10
+        self.x_under_block = 0
+
+        for _ in range(self.inner_loop_steps):
             mujoco.mj_step(self.model, self.data)
             mujoco.mj_forward(self.model, self.data)
-            # Push latest physics state to the window
             viewer.sync()
-            # Slow down so you can see what's happening
             time.sleep(0.001)
-            # print(self.data.sensordata[0])
-            if self.data.sensordata[2] < 0.2 and self.x_before_ground==-10:
-                print(self.data.sensordata[0])
-                self.x_before_ground = self.data.sensordata[0]
+            
+            if self.data.sensordata[2] >= self.right_z:
+                self.x_before_ground = self.data.sensordata[0] + 1.25
+            if self.data.sensordata[2] < self.block_size:
+                self.x_under_block = self.data.sensordata[0]
             
             if self.check_reached():
                 reward += 100
                 reached = True
                 break
-        # Calculate reward
-        # (reached, reward) = self._compute_reward()
+
+        # Distance‑scaled penalty for blocks that drift after placement
+        movement_penalty = 0.0
+        tolerance = 0.02  # ignore micro‑vibrations (<2 cm)
+        for i in range(self.num_blocks):
+            cur = self.data.sensordata[6 + 3 * i : 9 + 3 * i]
+            dist = np.linalg.norm(cur - self.initial_block_pos[i])
+            if dist > tolerance:
+                movement_penalty -= self.movement_penalty_scale * dist
+
+        # Calculate final reward
+        reward += movement_penalty
+        reward += self.x_before_ground / 5
+        reward += self.x_under_block / 10
+        reward -= 1.0
+
         # Check if episode is done
         done = (self.steps >= self.max_steps-1 or reached)
+        
         # Additional info
         info = {
             'ball_pos': self.data.sensordata[0:3],
             'ball_vel': self.data.sensordata[3:6],
         }
-        print(info)
 
         # Increment step counter
         self.steps += 1
+        self.x_before_ground = -10
+        mujoco.mj_forward(self.model, self.data)
 
         # Observation
         obs = self._get_obs()
