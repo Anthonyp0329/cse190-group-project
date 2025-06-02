@@ -195,11 +195,11 @@ class BridgeBuildingEnv(gym.Env):
         
         # Calculate reward
         reward += movement_penalty
-        # reward += self.x_before_ground / 5
+        reward += self.x_before_ground / 5
         # reward += self.x_under_block / 10
         reward -= 1.0
-        reward += self.data.qpos[self.ball_qpos_start + 2] / 5
-        reward += self.data.qpos[self.ball_qpos_start + 2] / 5
+        reward += (self.data.qpos[self.ball_qpos_start] - self.left_x) / 10
+        reward += self.data.qpos[self.ball_qpos_start + 2] / 10
 
         # -------------------------------
         #  Termination handling
