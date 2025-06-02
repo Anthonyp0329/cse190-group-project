@@ -334,8 +334,8 @@ class BridgeBuildingEnv(gym.Env):
         reward += movement_penalty
         reward += ((self.x_before_ground - self.left_x) / self.gap) / 4
         reward -= 1.0
-        reward += ((self.x_under_block - self.left_x) / self.gap) / 8
-        reward += self.data.qpos[self.ball_qpos_start + 2] / 16
+        reward += ((self.x_under_block - self.left_x) / self.gap) / 16
+        reward += (self.data.qpos[self.ball_qpos_start + 2] / self.left_z) / 8
 
         # Check if episode is done
         done = (self.steps >= self.max_steps-1 or reached)

@@ -67,7 +67,7 @@ if __name__ == "__main__":
     model = PPO(
         policy            = "CnnPolicy",
         env               = vec_env,
-        n_steps           = 40,             # 40 env‑steps × 4 envs per update
+        n_steps           = 32,             # 40 env‑steps × 4 envs per update
         batch_size        = 32,
         learning_rate     = 3e-4,
         gamma             = 0.99,
