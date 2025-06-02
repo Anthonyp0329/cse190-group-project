@@ -11,14 +11,14 @@ def main(steps=300, fps=20):
     env = BridgeBuildingEnv()
     # Wrap in VecNormalize to apply the saved observation statistics
     vec_env = DummyVecEnv([lambda: env])
-    vec_env = VecNormalize.load("vecnormalize_bridge.pkl", vec_env)
+    vec_env = VecNormalize.load("checkpoints/vecnormalize_36000.pkl", vec_env)
     vec_env.training = False        # do not update running stats
     vec_env.norm_reward = False     # keep rewards un‑normalised for display
     with mj_viewer.launch_passive(env.model, env.data) as viewer:
         for i in range(10):
             obs_raw, info = env.reset()
             obs = vec_env.normalize_obs(obs_raw)
-            model = PPO.load("ppo_bridge.zip")
+            model = PPO.load("checkpoints/ppo_bridge_36000.zip")
 
             dt = 1.0 / fps
             

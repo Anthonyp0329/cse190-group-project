@@ -39,17 +39,101 @@
         </body>
 
         <!-- Blocks -->
-        <body name="block1" pos="-1 -5 0.5">
+        <body name="block1" pos="21 -1 0.25">
             <joint name="block1_free" type="free"/>
-            <geom type="box" size="0.5 0.5 0.5" mass="1" material="block" rgba="0.2 0.6 0.8 1"/>
+            <geom type="box" size="0.25 0.25 0.25" mass="1" material="block" rgba="0.2 0.6 0.8 1"/>
         </body>
-        <body name="block2" pos="0 -5 0.5">
+        <body name="block2" pos="22 -1 0.25">
             <joint name="block2_free" type="free"/>
-            <geom type="box" size="0.5 0.5 0.5" mass="1" material="block" rgba="0.2 0.6 0.8 1"/>
+            <geom type="box" size="0.25 0.25 0.25" mass="1" material="block" rgba="0.2 0.6 0.8 1"/>
         </body>
-        <body name="block3" pos="1 -5 0.5">
+        <body name="block3" pos="23 -1 0.25">
             <joint name="block3_free" type="free"/>
-            <geom type="box" size="0.5 0.5 0.5" mass="1" material="block" rgba="0.2 0.6 0.8 1"/>
+            <geom type="box" size="0.25 0.25 0.25" mass="1" material="block" rgba="0.2 0.6 0.8 1"/>
+        </body>
+        <body name="block4" pos="24 -1 0.25">
+            <joint name="block4_free" type="free"/>
+            <geom type="box" size="0.25 0.25 0.25" mass="1" material="block" rgba="0.2 0.6 0.8 1"/>
+        </body>
+        <body name="block5" pos="25 -1 0.25">
+            <joint name="block5_free" type="free"/>
+            <geom type="box" size="0.25 0.25 0.25" mass="1" material="block" rgba="0.2 0.6 0.8 1"/>
+        </body>
+        <body name="block6" pos="26 -1 0.25">
+            <joint name="block6_free" type="free"/>
+            <geom type="box" size="0.25 0.25 0.25" mass="1" material="block" rgba="0.2 0.6 0.8 1"/>
+        </body>
+        <body name="block7" pos="27 -1 0.25">
+            <joint name="block7_free" type="free"/>
+            <geom type="box" size="0.25 0.25 0.25" mass="1" material="block" rgba="0.2 0.6 0.8 1"/>
+        </body>
+        <body name="block8" pos="28 -1 0.25">
+            <joint name="block8_free" type="free"/>
+            <geom type="box" size="0.25 0.25 0.25" mass="1" material="block" rgba="0.2 0.6 0.8 1"/>
+        </body>
+        <body name="block9" pos="5 -1 0.25">
+            <joint name="block9_free" type="free"/>
+            <geom type="box" size="0.25 0.25 0.25" mass="1" material="block" rgba="0.2 0.6 0.8 1"/>
+        </body>
+        <body name="block10" pos="6 -1 0.25">
+            <joint name="block10_free" type="free"/>
+            <geom type="box" size="0.25 0.25 0.25" mass="1" material="block" rgba="0.2 0.6 0.8 1"/>
+        </body>
+        <body name="block11" pos="7 -1 0.25">
+            <joint name="block11_free" type="free"/>
+            <geom type="box" size="0.25 0.25 0.25" mass="1" material="block" rgba="0.2 0.6 0.8 1"/>
+        </body>
+        <body name="block12" pos="8 -1 0.25">
+            <joint name="block12_free" type="free"/>
+            <geom type="box" size="0.25 0.25 0.25" mass="1" material="block" rgba="0.2 0.6 0.8 1"/>
+        </body>
+        <body name="block13" pos="9 -1 0.25">
+            <joint name="block13_free" type="free"/>
+            <geom type="box" size="0.25 0.25 0.25" mass="1" material="block" rgba="0.2 0.6 0.8 1"/>
+        </body>
+        <body name="block14" pos="10 -1 0.25">
+            <joint name="block14_free" type="free"/>
+            <geom type="box" size="0.25 0.25 0.25" mass="1" material="block" rgba="0.2 0.6 0.8 1"/>
+        </body>
+        <body name="block15" pos="11 -1 0.25">
+            <joint name="block15_free" type="free"/>
+            <geom type="box" size="0.25 0.25 0.25" mass="1" material="block" rgba="0.2 0.6 0.8 1"/>
+        </body>
+        <body name="block16" pos="12 -1 0.25">
+            <joint name="block16_free" type="free"/>
+            <geom type="box" size="0.25 0.25 0.25" mass="1" material="block" rgba="0.2 0.6 0.8 1"/>
+        </body>
+        <body name="block17" pos="13 -1 0.25">
+            <joint name="block17_free" type="free"/>
+            <geom type="box" size="0.25 0.25 0.25" mass="1" material="block" rgba="0.2 0.6 0.8 1"/>
+        </body>
+        <body name="block18" pos="14 -1 0.25">
+            <joint name="block18_free" type="free"/>
+            <geom type="box" size="0.25 0.25 0.25" mass="1" material="block" rgba="0.2 0.6 0.8 1"/>
+        </body>
+        <body name="block19" pos="15 -1 0.25">
+            <joint name="block19_free" type="free"/>
+            <geom type="box" size="0.25 0.25 0.25" mass="1" material="block" rgba="0.2 0.6 0.8 1"/>
+        </body>
+        <body name="block20" pos="16 -1 0.25">
+            <joint name="block20_free" type="free"/>
+            <geom type="box" size="0.25 0.25 0.25" mass="1" material="block" rgba="0.2 0.6 0.8 1"/>
+        </body>
+        <body name="block21" pos="17 -1 0.25">
+            <joint name="block21_free" type="free"/>
+            <geom type="box" size="0.25 0.25 0.25" mass="1" material="block" rgba="0.2 0.6 0.8 1"/>
+        </body>
+        <body name="block22" pos="18 -1 0.25">
+            <joint name="block22_free" type="free"/>
+            <geom type="box" size="0.25 0.25 0.25" mass="1" material="block" rgba="0.2 0.6 0.8 1"/>
+        </body>
+            <body name="block23" pos="19 -1 0.25">
+                <joint name="block23_free" type="free"/>
+            <geom type="box" size="0.25 0.25 0.25" mass="1" material="block" rgba="0.2 0.6 0.8 1"/>
+        </body>
+        <body name="block24" pos="20 -1 0.25">
+            <joint name="block24_free" type="free"/>
+            <geom type="box" size="0.25 0.25 0.25" mass="1" material="block" rgba="0.2 0.6 0.8 1"/>
         </body>
     </worldbody>
 
@@ -63,6 +147,27 @@
         <framepos name="block1_pos" objtype="body" objname="block1"/>
         <framepos name="block2_pos" objtype="body" objname="block2"/>
         <framepos name="block3_pos" objtype="body" objname="block3"/>
+        <framepos name="block4_pos" objtype="body" objname="block4"/>
+        <framepos name="block5_pos" objtype="body" objname="block5"/>
+        <framepos name="block6_pos" objtype="body" objname="block6"/>
+        <framepos name="block7_pos" objtype="body" objname="block7"/>
+        <framepos name="block8_pos" objtype="body" objname="block8"/>
+        <framepos name="block9_pos" objtype="body" objname="block9"/>
+        <framepos name="block10_pos" objtype="body" objname="block10"/>
+        <framepos name="block11_pos" objtype="body" objname="block11"/>
+        <framepos name="block12_pos" objtype="body" objname="block12"/>
+        <framepos name="block13_pos" objtype="body" objname="block13"/>
+        <framepos name="block14_pos" objtype="body" objname="block14"/>
+        <framepos name="block15_pos" objtype="body" objname="block15"/>
+        <framepos name="block16_pos" objtype="body" objname="block16"/>
+        <framepos name="block17_pos" objtype="body" objname="block17"/>
+        <framepos name="block18_pos" objtype="body" objname="block18"/>
+        <framepos name="block19_pos" objtype="body" objname="block19"/>
+        <framepos name="block20_pos" objtype="body" objname="block20"/>
+        <framepos name="block21_pos" objtype="body" objname="block21"/>
+        <framepos name="block22_pos" objtype="body" objname="block22"/>
+        <framepos name="block23_pos" objtype="body" objname="block23"/>
+        <framepos name="block24_pos" objtype="body" objname="block24"/>
     </sensor>
 
 </mujoco> 

@@ -1,36 +1,76 @@
 # train_bridge.py
 import gymnasium as gym
 from stable_baselines3 import PPO
-from stable_baselines3.common.vec_env import DummyVecEnv
+from stable_baselines3.common.vec_env import DummyVecEnv, SubprocVecEnv
 from stable_baselines3.common.vec_env import VecNormalize
 from stable_baselines3.common.logger import configure
+from stable_baselines3.common.callbacks import BaseCallback
+import os
+from pathlib import Path
 
 from bridge_env import BridgeBuildingEnv     # ← your updated env
 
-# ───────────────────────────────────────────────────────────── constants
-PLACEMENT_STEPS        = 50                  # see bridge_env.py
-EXTRA_SAFE_STEPS       = 2                  # a couple of spare moves
-MAX_STEPS_PER_EPISODE  = PLACEMENT_STEPS + EXTRA_SAFE_STEPS
+# ───────────────────────────────────────────────────────────── constants            # a couple of spare moves
+MAX_STEPS_PER_EPISODE  = 20
 TOTAL_TIMESTEPS        = 50000            # ~20 k episodes
+NUM_ENVS             = 4              # run multiple envs in parallel (tweak for your CPU)
+CHECKPOINT_FREQ       = 1_000          # save every N environment steps
+CHECKPOINT_DIR        = "checkpoints"  # directory to store checkpoints
+
+# ─────────────────────────────────────────── checkpoint callback
+class VecNormCheckpointCallback(BaseCallback):
+    """
+    Save the PPO policy *and* VecNormalize statistics every `save_freq` steps.
+    """
+    def __init__(self, save_freq: int, save_path: str, vec_env: VecNormalize, name_prefix: str = "model", verbose: int = 0):
+        super().__init__(verbose)
+        self.save_freq = save_freq
+        self.save_path = Path(save_path)
+        self.save_path.mkdir(parents=True, exist_ok=True)
+        self.vec_env = vec_env
+        self.name_prefix = name_prefix
+
+    def _on_step(self) -> bool:
+        # `self.num_timesteps` is provided by BaseCallback
+        if self.n_calls % self.save_freq == 0:
+            step_tag   = f"{self.num_timesteps}"
+            model_file = self.save_path / f"{self.name_prefix}_{step_tag}"
+            # Save policy
+            self.model.save(model_file)
+            # Save normalisation statistics alongside the model
+            self.vec_env.save(self.save_path / f"vecnormalize_{step_tag}.pkl")
+            if self.verbose:
+                print(f"[checkpoint] saved to {model_file}")
+        return True
 
 # ─────────────────────────────────────────────────────── env factory
 def make_env():
     env = BridgeBuildingEnv()
-    # hard‑cap the high‑level decisions so PPO never stalls in infinite loops
+    # hard‑cap each episode length
     env = gym.wrappers.TimeLimit(env, max_episode_steps=MAX_STEPS_PER_EPISODE)
     return env
 
 # ─────────────────────────────────────────────────────────── training
 if __name__ == "__main__":
-    vec_env  = DummyVecEnv([make_env])      # single process → deterministic
+    # launch several envs in parallel for higher throughput
+    vec_env  = SubprocVecEnv([make_env for _ in range(NUM_ENVS)])
     # Normalise observations and rewards for stabler PPO training
     vec_env = VecNormalize(vec_env, norm_obs=True, norm_reward=True, clip_obs=10.0)
     logger   = configure("runs", ["stdout", "tensorboard"])
 
+    # prepare checkpoint callback
+    checkpoint_callback = VecNormCheckpointCallback(
+        save_freq   = CHECKPOINT_FREQ,
+        save_path   = CHECKPOINT_DIR,
+        vec_env     = vec_env,
+        name_prefix = "ppo_bridge",
+        verbose     = 1,
+    )
+
     model = PPO(
         policy            = "MlpPolicy",
         env               = vec_env,
-        n_steps           = 32,             # shorter rollout because episodes are tiny
+        n_steps           = 40,             # 40 env‑steps × 4 envs per update
         batch_size        = 32,
         learning_rate     = 3e-4,
         gamma             = 0.99,
@@ -40,7 +80,7 @@ if __name__ == "__main__":
         verbose           = 1,
     )
     model.set_logger(logger)
-    model.learn(total_timesteps=TOTAL_TIMESTEPS)
+    model.learn(total_timesteps=TOTAL_TIMESTEPS, callback=checkpoint_callback)
     model.save("ppo_bridge")
     # Save normalisation statistics
     vec_env.save("vecnormalize_bridge.pkl")
