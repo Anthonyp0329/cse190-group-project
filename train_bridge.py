@@ -15,7 +15,7 @@ from bridge_env import BridgeBuildingEnv     # ← your updated env
 MAX_STEPS_PER_EPISODE  = 20
 TOTAL_TIMESTEPS        = 1000000            # ~20 k episodes
 NUM_ENVS             = 4              # run multiple envs in parallel (tweak for your CPU)
-CHECKPOINT_FREQ       = 1_000          # save every N environment steps
+CHECKPOINT_FREQ       = 250          # save every N environment steps
 CHECKPOINT_DIR        = "checkpoints"  # directory to store checkpoints
 
 # ─────────────────────────────────────────── checkpoint callback
@@ -39,7 +39,6 @@ class VecNormCheckpointCallback(BaseCallback):
             # Save policy
             self.model.save(model_file)
             # Save normalisation statistics alongside the model
-            self.vec_env.save(self.save_path / f"vecnormalize_{step_tag}.pkl")
             if self.verbose:
                 print(f"[checkpoint] saved to {model_file}")
         return True

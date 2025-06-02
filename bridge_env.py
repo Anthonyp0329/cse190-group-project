@@ -180,9 +180,9 @@ class BridgeBuildingEnv(gym.Env):
         for _ in range(self.inner_loop_steps):
             mujoco.mj_step(self.model, self.data)
             if self.data.sensordata[2] >= self.right_z:
-                self.x_before_ground = self.data.sensordata[0] + 1.25
-            if self.data.sensordata[2] < self.block_size:
-                self.x_under_0_3 = self.data.sensordata[0]
+                self.x_before_ground = self.data.sensordata[0]
+            if self.data.sensordata[2] >= self.block_size:
+                self.x_under_block = self.data.sensordata[0]
 
             if self.check_reached():
                 reward += 100
@@ -205,10 +205,9 @@ class BridgeBuildingEnv(gym.Env):
         
         # Calculate reward
         reward += movement_penalty
-        reward += self.x_before_ground / 5
-        # reward += self.x_under_block / 10
+        reward += (self.x_before_ground - self.left_x) / 5
         reward -= 1.0
-        reward += (self.data.qpos[self.ball_qpos_start] - self.left_x) / 10
+        reward += (self.x_under_block - self.left_x) / 10
         reward += self.data.qpos[self.ball_qpos_start + 2] / 10
 
         # -------------------------------
