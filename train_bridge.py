@@ -14,8 +14,8 @@ from bridge_env import BridgeBuildingEnv     # ← your updated env
 # ───────────────────────────────────────────────────────────── constants            # a couple of spare moves
 MAX_STEPS_PER_EPISODE  = 20
 TOTAL_TIMESTEPS        = 1000000            # ~20 k episodes
-NUM_ENVS             = 4              # run multiple envs in parallel (tweak for your CPU)
-CHECKPOINT_FREQ       = 250          # save every N environment steps
+NUM_ENVS             = 1              # run multiple envs in parallel (tweak for your CPU)
+CHECKPOINT_FREQ       = 1000          # save every N environment steps
 CHECKPOINT_DIR        = "checkpoints"  # directory to store checkpoints
 
 # ─────────────────────────────────────────── checkpoint callback

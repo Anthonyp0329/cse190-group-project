@@ -42,12 +42,16 @@ class BridgeBuildingEnv(gym.Env):
             dtype=np.uint8
         )
 
-        # Action: (x, y, z) teleport + done‑flag (0.0 = continue, ≥0.5 = terminate)
-        self.action_space = spaces.Box(
-            low=np.array([-.75 + self.block_size, 0.0, self.block_size], dtype=np.float32),
-            high=np.array([1.75 - self.block_size,  0.0, 2.0], dtype=np.float32),
-            dtype=np.float32,
-        )
+        self.coord_low = np.array([
+            -0.75 + self.block_size,  # x (left of left platform)
+            self.block_size,          # z at least one half block above ground
+        ], dtype=np.float32)
+        self.coord_high = np.array([
+            2.25 - self.block_size,   # x (right of right platform)
+            2.0,                      # z upper bound
+        ], dtype=np.float32)
+        self.action_space = spaces.Box(low=-1.0, high=1.0, shape=(2,), dtype=np.float32)
+
 
         # Simulation control
         self.simulation_started = False
@@ -139,6 +143,12 @@ class BridgeBuildingEnv(gym.Env):
         
         return self._get_obs(), {}
 
+    def _unnormalize_action(self, a: np.ndarray) -> np.ndarray:
+        """Convert an action in [-1, 1] range to world coordinates."""
+        a = np.clip(a, -1.0, 1.0)
+        a = self.coord_low + 0.5 * (a + 1.0) * (self.coord_high - self.coord_low)
+        return np.array([a[0],0,a[1]])
+
     # ---- step ----------------------------------------------------------------
     def step(self, action):
         """
@@ -146,8 +156,7 @@ class BridgeBuildingEnv(gym.Env):
         its free joint according to the action. Control alternates between blocks.
         """
         # Clip action to bounds
-        action = np.clip(action, self.action_space.low, self.action_space.high)
-        target_pos     = action
+        target_pos = self._unnormalize_action(action)
         self.data.qpos[self.ball_qpos_start:self.ball_qpos_start + 3] = self.ball_position_rest
 
 
@@ -205,10 +214,10 @@ class BridgeBuildingEnv(gym.Env):
         
         # Calculate reward
         reward += movement_penalty
-        reward += (self.x_before_ground - self.left_x) / 5
+        reward += ((self.x_before_ground - self.left_x) / self.gap) / 4
         reward -= 1.0
-        reward += (self.x_under_block - self.left_x) / 10
-        reward += self.data.qpos[self.ball_qpos_start + 2] / 10
+        reward += ((self.x_under_block - self.left_x) / self.gap) / 8
+        reward += self.data.qpos[self.ball_qpos_start + 2] / 16
 
         # -------------------------------
         #  Termination handling
@@ -265,8 +274,7 @@ class BridgeBuildingEnv(gym.Env):
         self.data.qpos[self.ball_qpos_start:self.ball_qpos_start + 3] = self.ball_position_rest
 
         # Clip action to bounds
-        action = np.clip(action, self.action_space.low, self.action_space.high)
-        target_pos = action
+        target_pos = self._unnormalize_action(action)
 
         # Which block do we control this step? 0 → block1, 1 → block2, 2 → block3
         block_idx = self.steps % self.num_blocks
@@ -304,8 +312,8 @@ class BridgeBuildingEnv(gym.Env):
             time.sleep(0.001)
             
             if self.data.sensordata[2] >= self.right_z:
-                self.x_before_ground = self.data.sensordata[0] + 1.25
-            if self.data.sensordata[2] < self.block_size:
+                self.x_before_ground = self.data.sensordata[0]
+            if self.data.sensordata[2] >= self.block_size:
                 self.x_under_block = self.data.sensordata[0]
             
             if self.check_reached():
@@ -324,11 +332,10 @@ class BridgeBuildingEnv(gym.Env):
 
         # Calculate final reward
         reward += movement_penalty
-        # reward += self.x_before_ground / 5
-        # reward += self.x_under_block / 10
+        reward += ((self.x_before_ground - self.left_x) / self.gap) / 4
         reward -= 1.0
-        reward += self.data.qpos[self.ball_qpos_start + 2] / 5
-        reward += self.data.qpos[self.ball_qpos_start + 2] / 5
+        reward += ((self.x_under_block - self.left_x) / self.gap) / 8
+        reward += self.data.qpos[self.ball_qpos_start + 2] / 16
 
         # Check if episode is done
         done = (self.steps >= self.max_steps-1 or reached)

@@ -3,8 +3,8 @@ import time
 import mujoco.viewer as mj_viewer
 from stable_baselines3 import PPO
 from stable_baselines3.common.vec_env import DummyVecEnv, VecNormalize
-
 from bridge_env import BridgeBuildingEnv
+import cv2
 
 
 def main(steps=300, fps=20):
@@ -16,7 +16,7 @@ def main(steps=300, fps=20):
     with mj_viewer.launch_passive(env.model, env.data) as viewer:
         for i in range(10):
             obs, info = env.reset()
-            model = PPO.load("checkpoints/ppo_bridge_1000.zip")
+            model = PPO.load("checkpoints/ppo_bridge_9000.zip")
             dt = 1.0 / fps
             
             done        = False
@@ -25,6 +25,7 @@ def main(steps=300, fps=20):
 
             # Create the viewer (blocking call returns a Viewer object)
                 # for _ in range(steps):
+            counter = 0
             while not done:
                 action, _ = model.predict(obs, deterministic=True)
 
@@ -32,6 +33,9 @@ def main(steps=300, fps=20):
                 total_r += reward
                 done = complete
                 print(reward)
+                print(f"Type: {type(obs)}, dtype: {getattr(obs, 'dtype', None)}, shape: {getattr(obs, 'shape', None)}")
+                # cv2.imwrite(f"./images/{counter}.png", cv2.cvtColor(obs, cv2.COLOR_RGB2BGR))
+                counter += 1
 
             print(f"Episode reward: {total_r}")
     env.close()
