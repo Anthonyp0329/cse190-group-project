@@ -14,8 +14,8 @@ from bridge_env import BridgeBuildingEnv     # ← your updated env
 # ───────────────────────────────────────────────────────────── constants            # a couple of spare moves
 MAX_STEPS_PER_EPISODE  = 20
 TOTAL_TIMESTEPS        = 1000000            # ~20 k episodes
-NUM_ENVS             = 8              # run multiple envs in parallel (tweak for your CPU)
-CHECKPOINT_FREQ       = 5_000          # save every N environment steps
+NUM_ENVS             = 4              # run multiple envs in parallel (tweak for your CPU)
+CHECKPOINT_FREQ       = 1_000          # save every N environment steps
 CHECKPOINT_DIR        = "checkpoints"  # directory to store checkpoints
 
 # ─────────────────────────────────────────── checkpoint callback
@@ -52,9 +52,7 @@ def make_env():
 # ─────────────────────────────────────────────────────────── training
 if __name__ == "__main__":
     # launch several envs in parallel for higher throughput
-    vec_env = SubprocVecEnv([make_env for _ in range(NUM_ENVS)])  # Pass the function, don't call it
-    # Normalise observations and rewards for stabler PPO training
-    vec_env = VecNormalize(vec_env, norm_obs=True, norm_reward=True, clip_obs=10.0)
+    vec_env = DummyVecEnv([make_env for _ in range(NUM_ENVS)])  # Pass the function, don't call it
     # vec_env = VecNormalize.load("vecnormalize_bridge.pkl", vec_env)
     logger   = configure("runs", ["stdout", "tensorboard"])
 
@@ -68,7 +66,7 @@ if __name__ == "__main__":
     )
 
     model = PPO(
-        policy            = "MlpPolicy",
+        policy            = "CnnPolicy",
         env               = vec_env,
         n_steps           = 40,             # 40 env‑steps × 4 envs per update
         batch_size        = 32,
@@ -83,7 +81,6 @@ if __name__ == "__main__":
     model.learn(total_timesteps=TOTAL_TIMESTEPS, callback=checkpoint_callback)
     model.save("ppo_bridge")
     # Save normalisation statistics
-    vec_env.save("vecnormalize_bridge.pkl")
 
     # ─────────────────────────────────────────────────────── evaluation
     print("\n=== demo rollout with trained policy ===")

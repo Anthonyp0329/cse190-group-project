@@ -7,6 +7,7 @@ from gymnasium import spaces
 from mujoco.viewer import launch
 import os
 import mujoco.viewer as mj_viewer
+import cv2
 
 
 class BridgeBuildingEnv(gym.Env):
@@ -15,6 +16,8 @@ class BridgeBuildingEnv(gym.Env):
     # ------------------------------------------------------------------ init
     def __init__(self, num_blocks: int = 20, block_size: float = 0.25):
         super().__init__()
+        self.IMG_H= 128
+        self.IMG_W = 256
 
         # allow caller to specify how many movable bridge blocks exist
         self.num_blocks = num_blocks
@@ -24,18 +27,25 @@ class BridgeBuildingEnv(gym.Env):
         self.model = mujoco.MjModel.from_xml_path("bridge_model.xml")
         self.data = mujoco.MjData(self.model)
 
+        self.renderer = mujoco.Renderer(self.model, height=self.IMG_H,
+                                        width=self.IMG_W)
+
+        # Make sure the camera exists
+        if mujoco.mj_name2id(self.model, mujoco.mjtObj.mjOBJ_CAMERA,
+                             "ground_cam") == -1:
+            raise RuntimeError("Camera 'ground_cam' missing from XML.")
+
+        # Observation space is now an image
+        self.observation_space = spaces.Box(
+            low=0, high=255,
+            shape=(self.IMG_H, self.IMG_W, 3),
+            dtype=np.uint8
+        )
+
         # Action: (x, y, z) teleport + done‑flag (0.0 = continue, ≥0.5 = terminate)
         self.action_space = spaces.Box(
             low=np.array([-.75 + self.block_size, 0.0, self.block_size], dtype=np.float32),
             high=np.array([1.75 - self.block_size,  0.0, 2.0], dtype=np.float32),
-            dtype=np.float32,
-        )
-
-        # Observation: 3 × B block positions  + 6 platform positions + 3 ball positions + 3 ball velocity
-        self.observation_space = spaces.Box(
-            low=-np.inf,
-            high=np.inf,
-            shape=(3 * self.num_blocks + 12,),
             dtype=np.float32,
         )
 
@@ -95,7 +105,7 @@ class BridgeBuildingEnv(gym.Env):
         # ------------------------------------------------------------
         self.left_x   = -1.25                   # keep left platform anchor
         self.gap      = self.np_random.uniform(1.0, 3.0)   # ≤ 3 block‑widths
-        # gap = 3.0
+        self.gap = 3.0
         self.right_x  = self.left_x + 1.0 + self.gap      # 1.0 = two half‑widths (0.5 + 0.5)
 
         self.left_z   = self.np_random.uniform(1.0, 1.5)
@@ -227,33 +237,15 @@ class BridgeBuildingEnv(gym.Env):
     # ---------------------------------------------------------------- utils
 
     def _get_obs(self):
-        # Return block positions, platform positions, and current target block as observation
-        # Block positions (9 values) + platform positions (6 values) + target block (3 values)
-        # Current world‑frame positions of the left and right platforms
-        # (x, y, z for each). Reading them from `data.xpos` lets the agent
-        # see the actual platform heights, which may change between episodes.
-        platform_positions = np.concatenate(
-            [
-                self.data.xpos[self.left_platform_body],
-                self.data.xpos[self.right_platform_body],
-            ]
-        ).astype(np.float32)
+        """
+        Render the scene from the ground‑level camera and return an
+        (H, W, 3) uint8 RGB array.
+        """
+        # Tell the renderer which camera to use
+        self.renderer.update_scene(self.data, camera="ground_cam")
+        img = self.renderer.render()        # (H, W, 3) uint8
+        return img
 
-        # Gather current block positions
-        block_positions = np.concatenate(
-            [
-                np.array([0, 0, 0]) if self.data.sensordata[6 + 3 * i + 1] == -1 
-                else self.data.sensordata[6 + 3 * i : 9 + 3 * i]
-                for i in range(self.num_blocks)
-            ]
-        ).astype(np.float32)
-
-        ball_positions = self.data.sensordata[0:3]
-        ball_velocities = self.data.sensordata[3:6]
-
-
-        return np.concatenate([ball_positions, ball_velocities, platform_positions, block_positions])
-    
     def check_reached(self):
         """
         Shaped reward:
@@ -370,8 +362,10 @@ class BridgeBuildingEnv(gym.Env):
     
     
 if __name__ == "__main__":
-    env = BridgeBuildingEnv(num_blocks=5)  # e.g. create 5 movable blocks
-    _, _ = env.reset()
+    env = BridgeBuildingEnv()
+    obs, _ = env.reset()
     action = env.action_space.sample()
-    # action = [-1, 0, 1]
-    env.main(action)
+    while True:
+        cv2.imshow("ground_cam", cv2.cvtColor(obs, cv2.COLOR_RGB2BGR))
+        if cv2.waitKey(1) == 27:
+            break

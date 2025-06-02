@@ -16,8 +16,15 @@
 
     <!-- World -->
     <worldbody>
+    <!-- Ground‑level side‑view camera -->
+        <camera
+            name="ground_cam"
+            mode="fixed"
+            pos="0.75 -40  1.1" 
+            fovy="4"      
+            xyaxes="1 0 0   0 0 1" />   <!-- makes +x point right in the image -->
         <!-- Lighting -->
-        <light diffuse=".5 .5 .5" pos="0 0 3" dir="0 0 -1"/>
+        <light diffuse=".5 .5 .5" pos="0 0 3" dir="0 0 -1" castshadow="false"/>
         
         <!-- Ground -->
         <geom type="plane" size="10 10 0.1" rgba="0.8 0.8 0.8 1"/>
