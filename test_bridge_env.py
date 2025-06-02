@@ -16,7 +16,7 @@ def main(steps=300, fps=20):
     with mj_viewer.launch_passive(env.model, env.data) as viewer:
         for i in range(10):
             obs, info = env.reset()
-            model = PPO.load("checkpoints/ppo_bridge_9000.zip")
+            model = PPO.load("checkpoints/ppo_bridge_2000.zip")
             dt = 1.0 / fps
             
             done        = False
