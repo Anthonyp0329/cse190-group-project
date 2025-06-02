@@ -193,9 +193,9 @@ class BridgeBuildingEnv(gym.Env):
         
         # Calculate reward
         reward += movement_penalty
-        reward += self.x_before_ground * 10
-        reward += self.x_under_block * 2
-        reward -= 0.5
+        reward += self.x_before_ground / 5
+        reward += self.x_under_block / 10
+        reward -= 1.0
 
         # -------------------------------
         #  Termination handling

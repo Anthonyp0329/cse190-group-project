@@ -7,14 +7,15 @@ from stable_baselines3.common.logger import configure
 from stable_baselines3.common.callbacks import BaseCallback
 import os
 from pathlib import Path
+from stable_baselines3.common.monitor import Monitor
 
 from bridge_env import BridgeBuildingEnv     # ← your updated env
 
 # ───────────────────────────────────────────────────────────── constants            # a couple of spare moves
 MAX_STEPS_PER_EPISODE  = 20
-TOTAL_TIMESTEPS        = 50000            # ~20 k episodes
-NUM_ENVS             = 4              # run multiple envs in parallel (tweak for your CPU)
-CHECKPOINT_FREQ       = 1_000          # save every N environment steps
+TOTAL_TIMESTEPS        = 1000000            # ~20 k episodes
+NUM_ENVS             = 8              # run multiple envs in parallel (tweak for your CPU)
+CHECKPOINT_FREQ       = 5_000          # save every N environment steps
 CHECKPOINT_DIR        = "checkpoints"  # directory to store checkpoints
 
 # ─────────────────────────────────────────── checkpoint callback
@@ -53,9 +54,10 @@ def make_env():
 # ─────────────────────────────────────────────────────────── training
 if __name__ == "__main__":
     # launch several envs in parallel for higher throughput
-    vec_env  = SubprocVecEnv([make_env for _ in range(NUM_ENVS)])
+    vec_env  = SubprocVecEnv([Monitor(make_env()) for _ in range(NUM_ENVS)])
     # Normalise observations and rewards for stabler PPO training
     vec_env = VecNormalize(vec_env, norm_obs=True, norm_reward=True, clip_obs=10.0)
+    # vec_env = VecNormalize.load("vecnormalize_bridge.pkl", vec_env)
     logger   = configure("runs", ["stdout", "tensorboard"])
 
     # prepare checkpoint callback
