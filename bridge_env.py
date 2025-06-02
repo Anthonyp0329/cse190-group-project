@@ -182,12 +182,12 @@ class BridgeBuildingEnv(gym.Env):
         # Distance‑scaled penalty for blocks that drift after placement
         # ------------------------------------------------------------
         movement_penalty = 0.0
-        tolerance = 0.02                         # ignore micro‑vibrations (<2 cm)
-        for i in range(self.num_blocks):
-            cur  = self.data.sensordata[6 + 3 * i : 9 + 3 * i]
-            dist = np.linalg.norm(cur - self.initial_block_pos[i])
-            if dist > tolerance:
-                movement_penalty -= self.movement_penalty_scale * dist
+        # tolerance = 0.02                         # ignore micro‑vibrations (<2 cm)
+        # for i in range(self.num_blocks):
+        #     cur  = self.data.sensordata[6 + 3 * i : 9 + 3 * i]
+        #     dist = np.linalg.norm(cur - self.initial_block_pos[i])
+        #     if dist > tolerance:
+        #         movement_penalty -= self.movement_penalty_scale * dist
         
         # ------------------------------------------------------------
         # Agent‑initiated early termination
@@ -195,9 +195,11 @@ class BridgeBuildingEnv(gym.Env):
         
         # Calculate reward
         reward += movement_penalty
-        reward += self.x_before_ground / 5
-        reward += self.x_under_block / 10
+        # reward += self.x_before_ground / 5
+        # reward += self.x_under_block / 10
         reward -= 1.0
+        reward += self.data.qpos[self.ball_qpos_start + 2] / 5
+        reward += self.data.qpos[self.ball_qpos_start + 2] / 5
 
         # -------------------------------
         #  Termination handling
@@ -322,18 +324,20 @@ class BridgeBuildingEnv(gym.Env):
 
         # Distance‑scaled penalty for blocks that drift after placement
         movement_penalty = 0.0
-        tolerance = 0.02  # ignore micro‑vibrations (<2 cm)
-        for i in range(self.num_blocks):
-            cur = self.data.sensordata[6 + 3 * i : 9 + 3 * i]
-            dist = np.linalg.norm(cur - self.initial_block_pos[i])
-            if dist > tolerance:
-                movement_penalty -= self.movement_penalty_scale * dist
+        # tolerance = 0.02  # ignore micro‑vibrations (<2 cm)
+        # for i in range(self.num_blocks):
+        #     cur = self.data.sensordata[6 + 3 * i : 9 + 3 * i]
+        #     dist = np.linalg.norm(cur - self.initial_block_pos[i])
+        #     if dist > tolerance:
+        #         movement_penalty -= self.movement_penalty_scale * dist
 
         # Calculate final reward
         reward += movement_penalty
-        reward += self.x_before_ground / 5
-        reward += self.x_under_block / 10
+        # reward += self.x_before_ground / 5
+        # reward += self.x_under_block / 10
         reward -= 1.0
+        reward += self.data.qpos[self.ball_qpos_start + 2] / 5
+        reward += self.data.qpos[self.ball_qpos_start + 2] / 5
 
         # Check if episode is done
         done = (self.steps >= self.max_steps-1 or reached)
