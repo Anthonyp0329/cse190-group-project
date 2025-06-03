@@ -14,7 +14,7 @@ from bridge_env import BridgeBuildingEnv     # ← your updated env
 # ───────────────────────────────────────────────────────────── constants            # a couple of spare moves
 MAX_STEPS_PER_EPISODE  = 20
 TOTAL_TIMESTEPS        = 1000000            # ~20 k episodes
-NUM_ENVS             = 8              # run multiple envs in parallel (tweak for your CPU)
+NUM_ENVS             = 4              # run multiple envs in parallel (tweak for your CPU)
 CHECKPOINT_FREQ       = 5_000          # save every N environment steps
 CHECKPOINT_DIR        = "checkpoints"  # directory to store checkpoints
 
@@ -70,8 +70,8 @@ if __name__ == "__main__":
     model = PPO(
         policy            = "MlpPolicy",
         env               = vec_env,
-        n_steps           = 40,             # 40 env‑steps × 4 envs per update
-        batch_size        = 32,
+        n_steps           = 128,             # 40 env‑steps × 4 envs per update
+        batch_size        = 256,
         learning_rate     = 3e-4,
         gamma             = 0.99,
         gae_lambda        = 0.95,

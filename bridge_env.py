@@ -50,6 +50,13 @@ class BridgeBuildingEnv(gym.Env):
         self.inner_loop_steps = 1000        # shorter inner MuJoCo roll‑out
         self.ball_speed        = 3.0       # faster x velocity for the ball
         
+        # ───────── reward‑scaling constants (tuned for denser signal)
+        self.R_FINAL       = 15.0    # bonus when the ball reaches the right platform
+        self.STEP_COST     = -0.1   # mild time penalty per agent step
+        self.R_PROGRESS_X  = 1.0     # reward per metre of forward ball motion (incremental)
+        self.R_HEIGHT      = 0.5     # reward per metre the ball stays above the gap plane
+        self.R_BLOCK_MOVE  = 0.2     # penalty per metre a placed block drifts
+        
         # track ball x‑position to compute shaped reward
         self.prev_ball_x = 0.0
         
@@ -162,7 +169,7 @@ class BridgeBuildingEnv(gym.Env):
         self.data.qvel[:6] = [self.ball_speed, 0, 0, 0, 0, 0]
         
         # Step simulation
-        reward = 0
+        reward = self.STEP_COST      # start with a small per‑step penalty
         reached = False
         self.x_before_ground = 0
         self.x_under_block = 0
@@ -174,31 +181,35 @@ class BridgeBuildingEnv(gym.Env):
             if self.data.sensordata[2] >= self.block_size:
                 self.x_under_block = self.data.sensordata[0]
 
-            if self.check_reached():
-                reward += 100
-                reached = True
+            if reached:
+                unused = self.num_blocks - (self.steps + 1)
+                reward += self.R_FINAL + 0.5 * unused    # more credit for finishing early
+                break
         
         # ------------------------------------------------------------
         # Distance‑scaled penalty for blocks that drift after placement
         # ------------------------------------------------------------
         movement_penalty = 0.0
-        # tolerance = 0.02                         # ignore micro‑vibrations (<2 cm)
-        # for i in range(self.num_blocks):
-        #     cur  = self.data.sensordata[6 + 3 * i : 9 + 3 * i]
-        #     dist = np.linalg.norm(cur - self.initial_block_pos[i])
-        #     if dist > tolerance:
-        #         movement_penalty -= self.movement_penalty_scale * dist
-        
-        # ------------------------------------------------------------
-        # Agent‑initiated early termination
-        # ------------------------------------------------------------
-        
-        # Calculate reward
-        reward += movement_penalty
-        reward += ((self.x_before_ground - self.left_x) / self.gap) / 4
-        reward -= 1.0
-        reward += ((self.x_under_block - self.left_x) / self.gap) / 16
-        reward += (self.data.qpos[self.ball_qpos_start + 2] / self.left_z) / 8
+
+        # ───────── incremental forward progress (x‑axis)
+        ball_x = self.data.sensordata[0]
+        dx = ball_x - self.prev_ball_x
+        reward += self.R_PROGRESS_X * dx
+        self.prev_ball_x = ball_x
+
+        # ───────── height shaping (reward for staying above gap plane)
+        ball_z = self.data.sensordata[2]
+        baseline = self.left_z + 0.5 * self.block_size
+        dz = max(ball_z - baseline, 0.0)
+        reward += self.R_HEIGHT * dz
+
+        # ───────── block‑drift penalty
+        tolerance = 0.02
+        for i in range(self.num_blocks):
+            cur = self.data.sensordata[6 + 3 * i : 9 + 3 * i]
+            dist = np.linalg.norm(cur - self.initial_block_pos[i])
+            if dist > tolerance:
+                reward -= self.R_BLOCK_MOVE * dist
 
         # -------------------------------
         #  Termination handling
