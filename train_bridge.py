@@ -79,9 +79,9 @@ if __name__ == "__main__":
     #     vf_coef           = 0.4,
     #     verbose           = 1,
     # )
-    vec_env = DummyVecEnv([lambda: BridgeBuildingEnv()])
-    vec_env = VecNormalize.load("checkpoints/vecnormalize_120000.pkl", vec_env)
-    model = PPO.load("checkpoints/ppo_bridge_120000.zip", env=vec_env)
+    vec_env = SubprocVecEnv([make_env for _ in range(NUM_ENVS)])
+    vec_env = VecNormalize.load("checkpoints/vecnormalize_100000.pkl", vec_env)
+    model = PPO.load("checkpoints/ppo_bridge_100000.zip", env=vec_env)
     model.set_logger(logger)
     model.learn(total_timesteps=TOTAL_TIMESTEPS, callback=checkpoint_callback)
     model.save("ppo_bridge")
