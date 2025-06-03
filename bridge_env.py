@@ -316,11 +316,11 @@ class BridgeBuildingEnv(gym.Env):
         self.x_before_ground = -10
         self.x_under_block = 0
 
-        for _ in range(self.inner_loop_steps):
+        for _ in range(self.inner_loop_steps * 2):
             mujoco.mj_step(self.model, self.data)
             mujoco.mj_forward(self.model, self.data)
             viewer.sync()
-            time.sleep(0.001)
+            time.sleep(0.0005)
             
             if self.data.sensordata[2] >= self.right_z:
                 self.x_before_ground = self.data.sensordata[0] + 1.25
