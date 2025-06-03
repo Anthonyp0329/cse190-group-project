@@ -14,7 +14,7 @@ from bridge_env import BridgeBuildingEnv     # ← your updated env
 # ───────────────────────────────────────────────────────────── constants            # a couple of spare moves
 MAX_STEPS_PER_EPISODE  = 20
 TOTAL_TIMESTEPS        = 1000000            # ~20 k episodes
-NUM_ENVS             = 1              # run multiple envs in parallel (tweak for your CPU)
+NUM_ENVS             = 32              # run multiple envs in parallel (tweak for your CPU)
 CHECKPOINT_FREQ       = 1000          # save every N environment steps
 CHECKPOINT_DIR        = "checkpoints"  # directory to store checkpoints
 
@@ -51,7 +51,7 @@ def make_env():
 # ─────────────────────────────────────────────────────────── training
 if __name__ == "__main__":
     # launch several envs in parallel for higher throughput
-    vec_env = DummyVecEnv([make_env for _ in range(NUM_ENVS)])  # Pass the function, don't call it
+    vec_env = SubprocVecEnv([make_env for _ in range(NUM_ENVS)])  # Pass the function, don't call it
     # vec_env = VecNormalize.load("vecnormalize_bridge.pkl", vec_env)
     logger   = configure("runs", ["stdout", "tensorboard"])
 
@@ -75,6 +75,7 @@ if __name__ == "__main__":
         clip_range        = 0.2,
         vf_coef           = 0.4,
         verbose           = 1,
+        device            = "cuda"
     )
     model.set_logger(logger)
     model.learn(total_timesteps=TOTAL_TIMESTEPS, callback=checkpoint_callback)
