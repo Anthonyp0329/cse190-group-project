@@ -14,7 +14,7 @@ from bridge_env import BridgeBuildingEnv     # ← your updated env
 # ───────────────────────────────────────────────────────────── constants            # a couple of spare moves
 MAX_STEPS_PER_EPISODE  = 20
 TOTAL_TIMESTEPS        = 1000000            # ~20 k episodes
-NUM_ENVS             = 8              # run multiple envs in parallel (tweak for your CPU)
+NUM_ENVS             = 4              # run multiple envs in parallel (tweak for your CPU)
 CHECKPOINT_FREQ       = 5_000          # save every N environment steps
 CHECKPOINT_DIR        = "checkpoints"  # directory to store checkpoints
 
@@ -67,18 +67,21 @@ if __name__ == "__main__":
         verbose     = 1,
     )
 
-    model = PPO(
-        policy            = "MlpPolicy",
-        env               = vec_env,
-        n_steps           = 40,             # 40 env‑steps × 4 envs per update
-        batch_size        = 32,
-        learning_rate     = 3e-4,
-        gamma             = 0.99,
-        gae_lambda        = 0.95,
-        clip_range        = 0.2,
-        vf_coef           = 0.4,
-        verbose           = 1,
-    )
+    # model = PPO(
+    #     policy            = "MlpPolicy",
+    #     env               = vec_env,
+    #     n_steps           = 40,             # 40 env‑steps × 4 envs per update
+    #     batch_size        = 32,
+    #     learning_rate     = 3e-4,
+    #     gamma             = 0.99,
+    #     gae_lambda        = 0.95,
+    #     clip_range        = 0.2,
+    #     vf_coef           = 0.4,
+    #     verbose           = 1,
+    # )
+    vec_env = DummyVecEnv([lambda: BridgeBuildingEnv()])
+    vec_env = VecNormalize.load("checkpoints/vecnormalize_120000.pkl", vec_env)
+    model = PPO.load("checkpoints/ppo_bridge_120000.zip", env=vec_env)
     model.set_logger(logger)
     model.learn(total_timesteps=TOTAL_TIMESTEPS, callback=checkpoint_callback)
     model.save("ppo_bridge")
