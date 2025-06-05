@@ -16,8 +16,10 @@ def main(steps=300, fps=20):
     with mj_viewer.launch_passive(env.model, env.data) as viewer:
         for i in range(10):
             obs, info = env.reset()
-            model = PPO.load("checkpoints/ppo_bridge_128000.zip")
+            model = PPO.load("checkpoints/ppo_bridge_1000.zip")
             dt = 1.0 / fps
+            total_params = sum(p.numel() for p in model.policy.parameters())
+            print(f"Total number of parameters: {total_params}")
             
             done        = False
             total_r     = 0.0
