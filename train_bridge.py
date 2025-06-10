@@ -8,8 +8,8 @@ from stable_baselines3.common.callbacks import BaseCallback
 from stable_baselines3.common.monitor import Monitor
 import os
 from pathlib import Path
-
-from bridge_env import BridgeBuildingEnv     # ← your updated env
+import torch
+from bridge_env import BridgeBuildingEnv
 
 # ───────────────────────────────────────────────────────────── constants            # a couple of spare moves
 MAX_STEPS_PER_EPISODE  = 20
@@ -17,6 +17,15 @@ TOTAL_TIMESTEPS        = 1000000            # ~20 k episodes
 NUM_ENVS             = 4              # run multiple envs in parallel (tweak for your CPU)
 CHECKPOINT_FREQ       = 5_000          # save every N environment steps
 CHECKPOINT_DIR        = "checkpoints"  # directory to store checkpoints
+
+# ────────────────────── custom policy (larger network)
+POLICY_KWARGS = dict(
+    activation_fn=torch.nn.ReLU,
+    # Separate actor (pi) and value‑function (vf) networks:
+    # 3 hidden layers → 512 → 512 → 256 units each
+    net_arch=[dict(pi=[512, 512, 256],
+                   vf=[512, 512, 256])]
+)
 
 # ─────────────────────────────────────────── checkpoint callback
 class VecNormCheckpointCallback(BaseCallback):
@@ -47,6 +56,7 @@ class VecNormCheckpointCallback(BaseCallback):
 # ─────────────────────────────────────────────────────── env factory
 def make_env():
     env = BridgeBuildingEnv()
+    env = Monitor(env)  # log episode stats for TensorBoard
     return env
 
 # ─────────────────────────────────────────────────────────── training
@@ -67,21 +77,22 @@ if __name__ == "__main__":
         verbose     = 1,
     )
 
-    # model = PPO(
-    #     policy            = "MlpPolicy",
-    #     env               = vec_env,
-    #     n_steps           = 40,             # 40 env‑steps × 4 envs per update
-    #     batch_size        = 32,
-    #     learning_rate     = 3e-4,
-    #     gamma             = 0.99,
-    #     gae_lambda        = 0.95,
-    #     clip_range        = 0.2,
-    #     vf_coef           = 0.4,
-    #     verbose           = 1,
-    # )
-    vec_env = SubprocVecEnv([make_env for _ in range(NUM_ENVS)])
-    vec_env = VecNormalize.load("checkpoints/vecnormalize_100000.pkl", vec_env)
-    model = PPO.load("checkpoints/ppo_bridge_100000.zip", env=vec_env)
+    model = PPO(
+        policy            = "MlpPolicy",
+        env               = vec_env,
+        policy_kwargs     = POLICY_KWARGS,
+        n_steps           = 64,             # 40 env‑steps × 4 envs per update
+        batch_size        = 256,
+        learning_rate     = 3e-4,
+        gamma             = 0.99,
+        gae_lambda        = 0.95,
+        clip_range        = 0.2,
+        vf_coef           = 0.4,
+        verbose           = 1,
+    )
+    # vec_env = SubprocVecEnv([make_env for _ in range(NUM_ENVS)])
+    # vec_env = VecNormalize.load("checkpoints/vecnormalize_100000.pkl", vec_env)
+    # model = PPO.load("checkpoints/ppo_bridge_100000.zip", env=vec_env)
     model.set_logger(logger)
     model.learn(total_timesteps=TOTAL_TIMESTEPS, callback=checkpoint_callback)
     model.save("ppo_bridge")

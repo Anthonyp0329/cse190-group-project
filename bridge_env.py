@@ -13,8 +13,10 @@ class BridgeBuildingEnv(gym.Env):
     metadata = {"render_modes": ["human"]}
 
     # ------------------------------------------------------------------ init
-    def __init__(self, num_blocks: int = 20, block_size: float = 0.25):
+    def __init__(self, num_blocks: int = 20, block_size: float = 0.25, mode="train"):
         super().__init__()
+
+        self.mode = mode
 
         # allow caller to specify how many movable bridge blocks exist
         self.num_blocks = num_blocks
@@ -84,27 +86,52 @@ class BridgeBuildingEnv(gym.Env):
         self.right_platform_body = mujoco.mj_name2id(
             self.model, mujoco.mjtObj.mjOBJ_BODY, "right_platform"
         )
+        self.episode_count = 0 
+        self.curriculum_phases = [
+            {"episodes": 500, "gap_range": (0.5, 0.5), "same_height": True, "height_range": (0.5, 0.5)},
+            {"episodes": 1000, "gap_range": (1.0, 1.0), "same_height": True, "height_range": (0.5, 0.5)},
+            {"episodes": 1000, "gap_range": (1.5, 1.5), "same_height": True, "height_range": (0.5, 0.5)},
+            {"episodes": 1000, "gap_range": (2.0, 2.0), "same_height": True, "height_range": (0.5, 0.5)},
+            {"episodes": 1000, "gap_range": (2.5, 2.5), "same_height": True, "height_range": (0.5, 0.5)},
+            {"episodes": float("inf"), "gap_range": (3.0, 3.0), "same_height": True, "height_range": (0.5, 0.5)},
+        ]
+        self.current_phase = self.curriculum_phases[0]
 
     # ---------------------------------------------------------------- reset
     def reset(self, seed=None, options=None):
         super().reset(seed=seed)
         mujoco.mj_resetData(self.model, self.data)
 
+        # Curriculum phase selection
+        total = 0
+        if self.mode == "eval":
+            self.current_phase = self.curriculum_phases[3]
+        else:
+            for phase in self.curriculum_phases:
+                total += phase["episodes"]
+                if self.episode_count < total:
+                    if phase != self.current_phase:
+                        print(f"New phase: {phase}")
+                    self.current_phase = phase
+                    break
+            else:
+                self.current_phase = self.curriculum_phases[-1]
+
         # ------------------------------------------------------------
         #  Randomise platform gap and heights
         # ------------------------------------------------------------
-        self.left_x   = -1.25                   # keep left platform anchor
-        self.gap      = self.np_random.uniform(1.0, 3.0)   # ≤ 3 block‑widths
-        # gap = 3.0
-        self.right_x  = self.left_x + 1.0 + self.gap      # 1.0 = two half‑widths (0.5 + 0.5)
+        self.left_x = -1.25  # keep left platform anchor
+        self.gap = self.np_random.uniform(*self.current_phase["gap_range"])
+        self.right_x = self.left_x + 1.0 + self.gap
 
-        self.left_z   = self.np_random.uniform(1.0, 1.5)
-        self.right_z  = self.np_random.uniform(0.4, min(0.9, self.left_z - 0.1))  # shorter
+        self.left_z = self.np_random.uniform(*self.current_phase["height_range"])
+        if self.current_phase["same_height"]:
+            self.right_z = self.left_z
+        else:
+            self.right_z = self.np_random.uniform(*self.current_phase["height_range"])
 
-        # self.right_z = 0.5
-        # left_z = 0.5
         # update body positions
-        self.model.body_pos[self.left_platform_body][:3]  = [self.left_x,  0.0, self.left_z]
+        self.model.body_pos[self.left_platform_body][:3] = [self.left_x, 0.0, self.left_z]
         self.model.body_pos[self.right_platform_body][:3] = [self.right_x, 0.0, self.right_z]
 
         # place ball on top of left platform
@@ -127,6 +154,7 @@ class BridgeBuildingEnv(gym.Env):
         # initialise progress tracker for shaped reward
         self.prev_ball_x = self.data.sensordata[0]
         
+        self.episode_count += 1
         return self._get_obs(), {}
 
     # ---- step ----------------------------------------------------------------
