@@ -16,8 +16,8 @@ class BridgeBuildingEnv(gym.Env):
     # ------------------------------------------------------------------ init
     def __init__(self, num_blocks: int = 20, block_size: float = 0.25):
         super().__init__()
-        self.IMG_H= 128
-        self.IMG_W = 256
+        self.IMG_H= 64
+        self.IMG_W = 128
 
         # allow caller to specify how many movable bridge blocks exist
         self.num_blocks = num_blocks
@@ -50,11 +50,15 @@ class BridgeBuildingEnv(gym.Env):
             2.25 - self.block_size,   # x (right of right platform)
             2.0,                      # z upper bound
         ], dtype=np.float32)
-        self.action_space = spaces.Box(low=-1.0, high=1.0, shape=(2,), dtype=np.float32)
+        # Add an extra dimension for the done flag
+        self.action_space = spaces.Box(low=-1.0, high=1.0, shape=(3,), dtype=np.float32)
 
 
         # Simulation control
         self.simulation_started = False
+        # ---------- Two‑phase episode control ----------
+        self.phase = "build"            # 'build' or 'rollout'
+        self.max_build_steps = self.num_blocks
         self.initial_ball_velocity = np.array([1.0, 0.0, 0.0])  # 1 unit/s to the right
         self.velocity_threshold = 0.01  # Threshold for considering ball stopped
 
@@ -104,19 +108,16 @@ class BridgeBuildingEnv(gym.Env):
         super().reset(seed=seed)
         mujoco.mj_resetData(self.model, self.data)
 
-        # ------------------------------------------------------------
-        #  Randomise platform gap and heights
-        # ------------------------------------------------------------
+        self.phase = "build"
+        self.steps = 0
+
+        # ---------- deterministic layout (no randomness) ----------
         self.left_x   = -1.25                   # keep left platform anchor
-        self.gap      = self.np_random.uniform(1.0, 3.0)   # ≤ 3 block‑widths
-        self.gap = 3.0
-        self.right_x  = self.left_x + 1.0 + self.gap      # 1.0 = two half‑widths (0.5 + 0.5)
+        self.gap = 3.0                                  # fixed three‑block gap
+        self.right_x = self.left_x + 1.0 + self.gap     # 1.0 = two half‑widths
+        self.left_z  = 0.5
+        self.right_z = 0.5
 
-        self.left_z   = self.np_random.uniform(1.0, 1.5)
-        self.right_z  = self.np_random.uniform(0.4, min(0.9, self.left_z - 0.1))  # shorter
-
-        # self.right_z = 0.5
-        # left_z = 0.5
         # update body positions
         self.model.body_pos[self.left_platform_body][:3]  = [self.left_x,  0.0, self.left_z]
         self.model.body_pos[self.right_platform_body][:3] = [self.right_x, 0.0, self.right_z]
@@ -146,101 +147,78 @@ class BridgeBuildingEnv(gym.Env):
     def _unnormalize_action(self, a: np.ndarray) -> np.ndarray:
         """Convert an action in [-1, 1] range to world coordinates."""
         a = np.clip(a, -1.0, 1.0)
+        done_flag = a[2] >= 0.5  # treat >= 0.5 as done
+        a = a[:2]  # only use the first two dimensions for position
         a = self.coord_low + 0.5 * (a + 1.0) * (self.coord_high - self.coord_low)
-        return np.array([a[0],0,a[1]])
+        return np.array([a[0],0,a[1]]), done_flag
 
     # ---- step ----------------------------------------------------------------
     def step(self, action):
         """
-        Teleport a block by overwriting the translational (x, y, z) part of
-        its free joint according to the action. Control alternates between blocks.
+        Two‑phase logic:
+          • build phase   – agent teleports one block per call, no ball motion.
+          • rollout phase – physics runs once (no further actions); sparse + shaped reward returned.
         """
-        # Clip action to bounds
-        target_pos = self._unnormalize_action(action)
-        self.data.qpos[self.ball_qpos_start:self.ball_qpos_start + 3] = self.ball_position_rest
+        if self.phase == "build":
+            # -------------------------------------------------- teleport a block
+            target_pos, done_flag = self._unnormalize_action(action)
+            # keep the ball frozen on the left platform
+            self.data.qpos[self.ball_qpos_start:self.ball_qpos_start + 3] = self.ball_position_rest
+            self.data.qvel[:6] = [0, 0, 0, 0, 0, 0]
 
+            block_idx = self.steps % self.num_blocks
+            start = self.block_qpos_starts[block_idx]
+            self.data.qpos[start : start + 3] = target_pos
+            mujoco.mj_forward(self.model, self.data)
 
-        # Which block do we control this step? 0 → block1, 1 → block2, 2 → block3
-        block_idx = self.steps % self.num_blocks
-        start     = self.block_qpos_starts[block_idx]
+            self.steps += 1
+            obs = self._get_obs()
+            reward = 0.0
+            terminated = truncated = False
+            info = {'phase': 'build', 'block_idx': block_idx}
 
-        # Teleport the selected block by overwriting its (x, y, z)
-        self.data.qpos[start : start + 3] = target_pos
+            # ------------------------------------------------ end of build phase?
+            if self.steps >= self.max_build_steps or (done_flag >= 0.5 and self.steps > 10):
+                self.phase = "rollout"
+                reward, reached = self._run_rollout()
+                terminated = True
+                info = {'phase': 'rollout', 'reached': reached}
 
-        # remember where this block was *placed*; later movement will be punished
-        for i in range(self.num_blocks):
-            start = self.block_qpos_starts[i]
-            self.initial_block_pos[i] = self.data.qpos[start : start + 3]
+            return obs, reward, terminated, truncated, info
 
-        # Recompute forward kinematics
-        mujoco.mj_forward(self.model, self.data)
-        # give the ball a forward shove each agent step
-        self.data.qvel[:6] = [0, 0, 0, 0, 0, 0]
-        for _ in range(200):
-            mujoco.mj_step(self.model, self.data)
+        # safeguard: step called after rollout without reset
+        raise RuntimeError("Episode finished; call reset() before stepping again.")
+
+    # ---------------------------------------------------------------- rollout
+    def _run_rollout(self, render_mode=None):
+        """
+        Run the evaluation phase once the bridge is built.
+        Potential‑based shaping: +10 × Δx of the ball each MuJoCo step,
+        plus +100 bonus if the ball reaches the right platform.
+        Returns (total_reward, reached_flag).
+        """
+        # give the ball its initial shove
         self.data.qvel[:6] = [self.ball_speed, 0, 0, 0, 0, 0]
-        
-        # Step simulation
-        reward = 0
+        self.prev_ball_x = self.data.sensordata[0]
+        total_reward = 0.0
         reached = False
-        self.x_before_ground = 0
-        self.x_under_block = 0
 
         for _ in range(self.inner_loop_steps):
-            mujoco.mj_step(self.model, self.data)
-            if self.data.sensordata[2] >= self.right_z:
-                self.x_before_ground = self.data.sensordata[0]
-            if self.data.sensordata[2] >= self.block_size:
-                self.x_under_block = self.data.sensordata[0]
+            if render_mode == "human":
+                mujoco.mj_step(self.model, self.data)
+                time.sleep(0.001)
+            else:
+                mujoco.mj_step(self.model, self.data)
+            ball_x = self.data.sensordata[0]
+            self.prev_ball_x = ball_x
 
             if self.check_reached():
-                reward += 100
+                total_reward += 100.0
                 reached = True
-        
-        # ------------------------------------------------------------
-        # Distance‑scaled penalty for blocks that drift after placement
-        # ------------------------------------------------------------
-        movement_penalty = 0.0
-        # tolerance = 0.02                         # ignore micro‑vibrations (<2 cm)
-        # for i in range(self.num_blocks):
-        #     cur  = self.data.sensordata[6 + 3 * i : 9 + 3 * i]
-        #     dist = np.linalg.norm(cur - self.initial_block_pos[i])
-        #     if dist > tolerance:
-        #         movement_penalty -= self.movement_penalty_scale * dist
-        
-        # ------------------------------------------------------------
-        # Agent‑initiated early termination
-        # ------------------------------------------------------------
-        
-        # Calculate reward
-        reward += movement_penalty
-        reward += ((self.x_before_ground - self.left_x) / self.gap) / 4
-        reward -= 1.0
-        reward += ((self.x_under_block - self.left_x) / self.gap) / 16
-        reward += (self.data.qpos[self.ball_qpos_start + 2] / self.left_z) / 8
-
-        # -------------------------------
-        #  Termination handling
-        # -------------------------------
-
-        terminated = reached
-        truncated = self.steps >= self.max_steps
-
-        # Additional info
-        info = {
-            'ball_pos': self.data.sensordata[0:3],
-            'ball_vel': self.data.sensordata[3:6],
-        }
-        
-        # Increment step counter
-        self.steps += 1
-        self.x_before_ground = -10
-        mujoco.mj_forward(self.model, self.data)
-
-        # Observation
-        obs = self._get_obs()
-
-        return obs, reward, terminated, truncated, info
+                break
+        total_reward = (self.data.sensordata[0] - self.left_x) / self.gap
+        total_reward += max(self.data.sensordata[2],0.5)
+        return total_reward, reached
 
     # ---------------------------------------------------------------- utils
 
@@ -269,92 +247,36 @@ class BridgeBuildingEnv(gym.Env):
         return reached
 
     def main(self, action, viewer, steps=300, fps=20):
-        dt = 1.0 / fps
+        if self.phase == "build":
+            # -------------------------------------------------- teleport a block
+            target_pos, done_flag = self._unnormalize_action(action)
+            # keep the ball frozen on the left platform
+            self.data.qpos[self.ball_qpos_start:self.ball_qpos_start + 3] = self.ball_position_rest
+            self.data.qvel[:6] = [0, 0, 0, 0, 0, 0]
 
-        self.data.qpos[self.ball_qpos_start:self.ball_qpos_start + 3] = self.ball_position_rest
-
-        # Clip action to bounds
-        target_pos = self._unnormalize_action(action)
-
-        # Which block do we control this step? 0 → block1, 1 → block2, 2 → block3
-        block_idx = self.steps % self.num_blocks
-        start = self.block_qpos_starts[block_idx]
-
-        # Teleport the selected block by overwriting its (x, y, z)
-        self.data.qpos[start : start + 3] = target_pos
-
-        # remember where this block was *placed*; later movement will be punished
-        for i in range(self.num_blocks):
-            start = self.block_qpos_starts[i]
-            self.initial_block_pos[i] = self.data.qpos[start : start + 3]
-
-        # Recompute forward kinematics
-        mujoco.mj_forward(self.model, self.data)
-        
-        self.data.qvel[:6] = [0, 0, 0, 0, 0, 0]
-        for _ in range(200):
-            mujoco.mj_step(self.model, self.data)
+            block_idx = self.steps % self.num_blocks
+            start = self.block_qpos_starts[block_idx]
+            self.data.qpos[start : start + 3] = target_pos
             mujoco.mj_forward(self.model, self.data)
-            viewer.sync()
-            time.sleep(0.001)
-        self.data.qvel[:6] = [self.ball_speed, 0, 0, 0, 0, 0]
-        
-        # Step simulation
-        reward = 0
-        reached = False
-        self.x_before_ground = -10
-        self.x_under_block = 0
 
-        for _ in range(self.inner_loop_steps):
-            mujoco.mj_step(self.model, self.data)
-            mujoco.mj_forward(self.model, self.data)
-            viewer.sync()
-            time.sleep(0.001)
-            
-            if self.data.sensordata[2] >= self.right_z:
-                self.x_before_ground = self.data.sensordata[0]
-            if self.data.sensordata[2] >= self.block_size:
-                self.x_under_block = self.data.sensordata[0]
-            
-            if self.check_reached():
-                reward += 100
-                reached = True
-                break
+            self.steps += 1
+            obs = self._get_obs()
+            reward = 0.0
+            terminated = truncated = False
+            info = {'phase': 'build', 'block_idx': block_idx}
+            time.sleep(1)
 
-        # Distance‑scaled penalty for blocks that drift after placement
-        movement_penalty = 0.0
-        # tolerance = 0.02  # ignore micro‑vibrations (<2 cm)
-        # for i in range(self.num_blocks):
-        #     cur = self.data.sensordata[6 + 3 * i : 9 + 3 * i]
-        #     dist = np.linalg.norm(cur - self.initial_block_pos[i])
-        #     if dist > tolerance:
-        #         movement_penalty -= self.movement_penalty_scale * dist
+            # ------------------------------------------------ end of build phase?
+            if self.steps >= self.max_build_steps or (done_flag >= 0.5 and self.steps > 10):
+                self.phase = "rollout"
+                reward, reached = self._run_rollout(render_mode="human")
+                terminated = True
+                info = {'phase': 'rollout', 'reached': reached}
 
-        # Calculate final reward
-        reward += movement_penalty
-        reward += ((self.x_before_ground - self.left_x) / self.gap) / 4
-        reward -= 1.0
-        reward += ((self.x_under_block - self.left_x) / self.gap) / 16
-        reward += (self.data.qpos[self.ball_qpos_start + 2] / self.left_z) / 8
+            return obs, reward, terminated, truncated, info
 
-        # Check if episode is done
-        done = (self.steps >= self.max_steps-1 or reached)
-        
-        # Additional info
-        info = {
-            'ball_pos': self.data.sensordata[0:3],
-            'ball_vel': self.data.sensordata[3:6],
-        }
-
-        # Increment step counter
-        self.steps += 1
-        self.x_before_ground = -10
-        mujoco.mj_forward(self.model, self.data)
-
-        # Observation
-        obs = self._get_obs()
-
-        return obs, reward, done, False, info
+        # safeguard: step called after rollout without reset
+        raise RuntimeError("Episode finished; call reset() before stepping again.")
 
     # ---------------------------------------------------------------- render
     def render(self):

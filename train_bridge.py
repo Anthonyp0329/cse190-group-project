@@ -14,8 +14,8 @@ from bridge_env import BridgeBuildingEnv     # ← your updated env
 # ───────────────────────────────────────────────────────────── constants            # a couple of spare moves
 MAX_STEPS_PER_EPISODE  = 20
 TOTAL_TIMESTEPS        = 1000000            # ~20 k episodes
-NUM_ENVS             = 32              # run multiple envs in parallel (tweak for your CPU)
-CHECKPOINT_FREQ       = 1000          # save every N environment steps
+NUM_ENVS             = 1             # run multiple envs in parallel (tweak for your CPU)
+CHECKPOINT_FREQ       = 50000          # save every N environment steps
 CHECKPOINT_DIR        = "checkpoints"  # directory to store checkpoints
 
 # ─────────────────────────────────────────── checkpoint callback
@@ -46,7 +46,7 @@ class VecNormCheckpointCallback(BaseCallback):
 # ─────────────────────────────────────────────────────── env factory
 def make_env():
     env = BridgeBuildingEnv()
-    return env
+    return Monitor(env)
 
 # ─────────────────────────────────────────────────────────── training
 if __name__ == "__main__":
@@ -68,7 +68,7 @@ if __name__ == "__main__":
         policy            = "CnnPolicy",
         env               = vec_env,
         n_steps           = 32,             # 40 env‑steps × 4 envs per update
-        batch_size        = 32,
+        batch_size        = 128,
         learning_rate     = 3e-4,
         gamma             = 0.99,
         gae_lambda        = 0.95,
